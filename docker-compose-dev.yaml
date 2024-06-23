@@ -7,15 +7,17 @@ services:
         - POSTGRES_PASSWORD=123
         - POSTGRES_DB=yaml
     ports:
-      - "5432:5432"
+      - "5434:5434"
+    command: ["postgres", "-c", "port=5434"]
+
 
   redis:
     image: redis
     ports:
-      - '6379:6379'
+      - '6380:6380'
+    command: redis-server --port 6380
 
   mailcatcher:
-    restart: on-failure
     image: dockage/mailcatcher:0.9.0
     ports:
       - '1080:1080'

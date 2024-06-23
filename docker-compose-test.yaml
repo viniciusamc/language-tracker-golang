@@ -7,15 +7,16 @@ services:
         - POSTGRES_PASSWORD=123
         - POSTGRES_DB=yaml
     ports:
-      - "5432:5432"
+      - "5434:5434"
+    command: ["postgres", "-c", "port=5434"]
 
   redis:
     image: redis
     ports:
-      - '6379:6379'
+      - '6380:6380'
+    command: redis-server --port 6380
 
   mailcatcher:
-    restart: on-failure
     image: dockage/mailcatcher:0.9.0
     ports:
       - '1080:1080'
@@ -27,8 +28,9 @@ services:
       context: .
       dockerfile: ./Dockerfile
     environment:
-      - DATABASE_URL=postgres://postgres:123@db/yaml?sslmode=disable
-      - REDIS_URL=redis:6379
+      - PORT=8080
+      - DATABASE_URL=postgres://postgres:123@db:5434/yaml?sslmode=disable
+      - REDIS_URL=redis:6380
       - EMAIL_HOST=mailcatcher
       - EMAIL_PORT=1025
       - EMAIL_USER=
@@ -42,8 +44,9 @@ services:
     <<: *api
     hostname: api02
     environment:
-      - DATABASE_URL=postgres://postgres:123@db/yaml?sslmode=disable
-      - REDIS_URL=redis:6379
+      - PORT=8080
+      - DATABASE_URL=postgres://postgres:123@db:5434/yaml?sslmode=disable
+      - REDIS_URL=redis:6380
       - EMAIL_HOST=mailcatcher
       - EMAIL_PORT=1025
       - EMAIL_USER=
