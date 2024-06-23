@@ -16,6 +16,10 @@ func (app *application) createMedia(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err := app.readJSON(w, r, &input)
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
 
 	validate := validator.New()
 	err = validate.Struct(input)
@@ -41,5 +45,25 @@ func (app *application) createMedia(w http.ResponseWriter, r *http.Request) {
 		app.log.Error().Err(err).Msg("TASK QUEUE MAIL")
 	}
 
-	app.render.JSON(w, 201, "Ok")
+	err = app.render.JSON(w, 201, "Ok")
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+}
+
+func (app *application) getMedia(w http.ResponseWriter, r *http.Request){
+	user := app.contextGetUser(r)
+
+	data, err := app.models.Medias.Get(user.Id.String())
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	err = app.render.JSON(w, 200, data)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
 }

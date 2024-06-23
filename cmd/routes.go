@@ -29,6 +29,7 @@ func (app *application) routes() http.Handler {
 	router.HandleFunc("GET /v1/talk", app.authenticate(app.getTalk))
 
 	router.HandleFunc("POST /v1/medias", app.authenticate(app.createMedia))
+	router.HandleFunc("GET /v1/medias", app.authenticate(app.getMedia))
 
 	return router
 }

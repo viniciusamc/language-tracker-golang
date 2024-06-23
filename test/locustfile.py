@@ -57,3 +57,14 @@ class HelloWorldUser(HttpUser):
             if response.status_code != 200:
                 print("Failed to access /v1/talk")
                 print(response.json().get('error'))
+
+    @task
+    def create_media(self):
+        if self.token:
+            headers = {'Authorization': f'Bearer {self.token}'}
+            response = self.client.post("/v1/medias", json={"url":"https://www.youtube.com/watch?v=NuS39O7_6ps", "type":"Youtube", "watch_type":"passive", "target_language": "pt"},headers=headers)
+            
+            if response.status_code != 201:
+                print("Failed to access /v1/talk")
+                print(response.json().get('error'))
+

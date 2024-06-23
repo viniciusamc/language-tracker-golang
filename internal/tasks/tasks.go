@@ -8,6 +8,7 @@ import (
 	"net/smtp"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 
 	youtubetranscript "github.com/dougbarrett/youtube-transcript"
@@ -34,28 +35,42 @@ type TranscriptPayload struct {
 	YoutubeUrl     string
 }
 
-func parseISO8601Duration(iso8601 string) string {
+
+func parseISO8601Duration(iso8601 string) (string, error) {
 	re := regexp.MustCompile(`PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?`)
 	matches := re.FindStringSubmatch(iso8601)
 
-	var hours, minutes, seconds string
-	if matches[1] != "" {
-		hours = fmt.Sprintf("%02s", matches[1])
-	} else {
-		hours = "00"
-	}
-	if matches[2] != "" {
-		minutes = fmt.Sprintf("%02s", matches[2])
-	} else {
-		minutes = "00"
-	}
-	if matches[3] != "" {
-		seconds = fmt.Sprintf("%02s", matches[3])
-	} else {
-		seconds = "00"
+	if matches == nil {
+		return "", fmt.Errorf("invalid ISO8601 duration format")
 	}
 
-	return fmt.Sprintf("%s:%s:%s", hours, minutes, seconds)
+	var hours, minutes, seconds int
+	var err error
+
+	if matches[1] != "" {
+		hours, err = strconv.Atoi(matches[1])
+		if err != nil {
+			return "", err
+		}
+	}
+	if matches[2] != "" {
+		minutes, err = strconv.Atoi(matches[2])
+		if err != nil {
+			return "", err
+		}
+	}
+	if matches[3] != "" {
+		seconds, err = strconv.Atoi(matches[3])
+		if err != nil {
+			return "", err
+		}
+	}
+
+	totalMinutes := hours*60 + minutes
+	formattedHours := totalMinutes / 60
+	formattedMinutes := totalMinutes % 60
+
+	return fmt.Sprintf("%02d:%02d:%02d", formattedHours, formattedMinutes, seconds), nil
 }
 
 func NewMailDeliveryTask(userId string, tmplID string) (*asynq.Task, error) {
@@ -105,9 +120,8 @@ func HandleTranscriptTask(ctx context.Context, t *asynq.Task, rdb *redis.Client,
 	if err := json.Unmarshal(t.Payload(), &y); err != nil {
 		return fmt.Errorf("json.Unmarshal failed: %v: %w", err, asynq.SkipRetry)
 	}
-	println(y.TargetLanguage)
 	opts := []youtubetranscript.Option{
-		youtubetranscript.WithLang("pt"),
+		youtubetranscript.WithLang(y.TargetLanguage),
 	}
 	log.Printf("Received task: UserId=%s, YoutubeUrl=%s, TargetLanguage=%s, MediaId=%s",
 		y.UserId, y.YoutubeUrl, y.TargetLanguage, y.MediaId)
@@ -115,7 +129,6 @@ func HandleTranscriptTask(ctx context.Context, t *asynq.Task, rdb *redis.Client,
 	if err != nil {
 		log.Fatalf("Error fetching transcript: %v", err)
 	}
-
 
 	var title, duration string
 
@@ -127,7 +140,9 @@ func HandleTranscriptTask(ctx context.Context, t *asynq.Task, rdb *redis.Client,
 
 	c.OnHTML("meta[itemprop=duration]", func(e *colly.HTMLElement) {
 		durationContent := e.Attr("content")
-		duration = parseISO8601Duration(durationContent)
+		duration, _ = parseISO8601Duration(durationContent)
+		println(duration)
+		println(durationContent)
 	})
 	err = c.Visit("https://www.youtube.com/watch?v=" + y.YoutubeUrl)
 	if err != nil {
@@ -140,14 +155,14 @@ func HandleTranscriptTask(ctx context.Context, t *asynq.Task, rdb *redis.Client,
 
 	err = rdb.Del(ctx, "medias:user:"+y.UserId).Err()
 	if err != nil {
-		log.Fatalf("error deleting cache", err)
+		log.Fatalf("error deleting cache %v", err)
 		return err
 	}
 
 	query := `UPDATE medias SET total_words = $1, title = $4, time = $5 WHERE id_user = $2 AND id = $3`
 	tx, err := pool.Begin(ctx)
 	if err != nil {
-		log.Fatalf("error begin pool", err)
+		log.Fatalf("error begin pool %v", err)
 		return err
 	}
 
@@ -157,7 +172,7 @@ func HandleTranscriptTask(ctx context.Context, t *asynq.Task, rdb *redis.Client,
 
 	_, err = tx.Exec(ctx, query, args...)
 	if err != nil {
-		log.Fatalf("error exec database", err)
+		log.Fatalf("error exec database %v", err)
 		return err
 	}
 

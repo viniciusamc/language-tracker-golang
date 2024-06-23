@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	// "go/format"
 	"language-tracker/internal/data"
 	"language-tracker/internal/tasks"
@@ -43,11 +42,6 @@ func main() {
 		log.Panic(err)
 	}
 
-	envs := os.Environ()
-	fmt.Println("Environment variables loaded from .env:")
-	for _, env := range envs {
-		fmt.Println(env)
-	}
 	var configLoaded config
 
 	configLoaded.env.JWT_KEY = "asda"

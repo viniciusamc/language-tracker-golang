@@ -25,6 +25,28 @@ type Talk struct {
 	CreatedAt      time.Time
 }
 
+type GeneratedType struct {
+	Output          []Output     `json:"output"`
+	OutputTotalTime string       `json:"outputTotalTime"`
+	AverageTime     string       `json:"averageTime"`
+	OutputStreak    OutputStreak `json:"outputStreak"`
+}
+
+type Output struct {
+	ID             string    `json:"id"`
+	IDUser         string    `json:"id_user"`
+	Type           string    `json:"type"`
+	Time           string    `json:"time"`
+	Summarize      string    `json:"summarize"`
+	TargetLanguage string    `json:"target_language"`
+	CreatedAt      time.Time `json:"created_at"`
+}
+
+type OutputStreak struct {
+	LongestStreak int64 `json:"longestStreak"`
+	CurrentStreak int64 `json:"currentStreak"`
+}
+
 func (t TalkModel) Insert(id string, kind string, minutes int16, targetLanguage string) error {
 	query := `INSERT INTO output(id_user, type, time, target_language) VALUES($1,$2,$3,$4)`
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -77,7 +99,6 @@ func (t TalkModel) GetByUser(id string) (*[]Talk, error) {
 		if err != nil {
 			return nil, err
 		}
-		println("redis")
 		return &talks, nil
 	}
 
