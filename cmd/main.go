@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	// "go/format"
 	"language-tracker/internal/data"
 	"language-tracker/internal/tasks"
@@ -19,7 +20,7 @@ import (
 
 type config struct {
 	port int
-	env struct {
+	env  struct {
 		JWT_KEY string
 	}
 	redis struct {
@@ -42,6 +43,11 @@ func main() {
 		log.Panic(err)
 	}
 
+	envs := os.Environ()
+	fmt.Println("Environment variables loaded from .env:")
+	for _, env := range envs {
+		fmt.Println(env)
+	}
 	var configLoaded config
 
 	configLoaded.env.JWT_KEY = "asda"
@@ -53,7 +59,12 @@ func main() {
 	if err != nil {
 		log.Panic("DATABASE URL MISSING")
 	}
-	client := asynq.NewClient(asynq.RedisClientOpt{Addr: os.Getenv("REDIS_URL")})
+	client := asynq.NewClient(asynq.RedisClientOpt{
+		Addr:     os.Getenv("REDIS_HOST") + ":" + os.Getenv("REDIS_PORT"),
+		Password: os.Getenv("REDIS_PASSWORD"),
+		Username: os.Getenv("REDIS_USER"),
+		DB:       0,
+	})
 	defer client.Close()
 
 	err = pool.Ping(context.Background())
@@ -62,14 +73,18 @@ func main() {
 	}
 
 	rdb := redis.NewClient(&redis.Options{
-		Addr: os.Getenv("REDIS_HOST") + ":" + os.Getenv("REDIS_PORT"),
+		Addr:     os.Getenv("REDIS_HOST") + ":" + os.Getenv("REDIS_PORT"),
 		Password: os.Getenv("REDIS_PASSWORD"),
 		Username: os.Getenv("REDIS_USER"),
-		DB: 0,
+		DB:       0,
 	})
 
 	srv := asynq.NewServer(
-		asynq.RedisClientOpt{Addr: os.Getenv("REDIS_URL")},
+		asynq.RedisClientOpt{
+			Addr:     os.Getenv("REDIS_HOST") + ":" + os.Getenv("REDIS_PORT"),
+			Password: os.Getenv("REDIS_PASSWORD"),
+			Username: os.Getenv("REDIS_USER"),
+		},
 		asynq.Config{
 			Concurrency: 2,
 		},
@@ -91,7 +106,7 @@ func main() {
 		render: render,
 		log:    &logger,
 		models: data.NewModel(pool, rdb),
-		queue: client,
+		queue:  client,
 		config: &configLoaded,
 	}
 

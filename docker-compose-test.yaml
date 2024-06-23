@@ -26,30 +26,34 @@ services:
     build:
       context: .
       dockerfile: ./Dockerfile
-    environment:
-      - DATABASE_URL=postgres://postgres:123@db/yaml?sslmode=disable
-      - REDIS_URL=redis:6379
-      - EMAIL_HOST=mailcatcher
-      - EMAIL_PORT=1025
-      - EMAIL_USER=
-      - EMAIL_API_KEY=
-      - EMAIL_SEND=
-      - JWT_KEY=abc
+    env_file:
+        - .env 
+    # environment:
+    #   - DATABASE_URL=postgres://postgres:123@db/yaml?sslmode=disable
+    #   - REDIS_URL=redis:6379
+    #   - EMAIL_HOST=mailcatcher
+    #   - EMAIL_PORT=1025
+    #   - EMAIL_USER=
+    #   - EMAIL_API_KEY=
+    #   - EMAIL_SEND=
+    #   - JWT_KEY=abc
     ports:
       - "8080:8080"
 
   api02:
     <<: *api
     hostname: api02
-    environment:
-      - DATABASE_URL=postgres://postgres:123@db/yaml?sslmode=disable
-      - REDIS_URL=redis:6379
-      - EMAIL_HOST=mailcatcher
-      - EMAIL_PORT=1025
-      - EMAIL_USER=
-      - EMAIL_API_KEY=
-      - EMAIL_SEND=
-      - JWT_KEY=abc
+    env_file:
+        - .env 
+    # environment:
+    #   - DATABASE_URL=postgres://postgres:123@db/yaml?sslmode=disable
+    #   - REDIS_URL=redis:6379
+    #   - EMAIL_HOST=mailcatcher
+    #   - EMAIL_PORT=1025
+    #   - EMAIL_USER=
+    #   - EMAIL_API_KEY=
+    #   - EMAIL_SEND=
+    #   - JWT_KEY=abc
     ports:
       - "8082:8080"
 
