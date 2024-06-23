@@ -1,0 +1,152 @@
+package data
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog/log"
+	"golang.org/x/crypto/bcrypt"
+)
+
+type UserModel struct {
+	DB *pgxpool.Pool
+}
+
+type UserConfig struct {
+	TargetLanguage string `json:"TL"`
+}
+
+type User struct {
+	Id             uuid.UUID 
+	Username       string
+	Email          string
+	Password       string
+	Configs        UserConfig
+	Email_token    uuid.UUID
+	Email_verified bool
+	Created_at     time.Time
+	Updated_at     time.Time
+}
+
+var (
+	ErrDuplicateEmail    = errors.New("duplicate email")
+	ErrDuplicateUsername = errors.New("duplicate username")
+	ErrUserNotFound      = errors.New("User not found")
+)
+
+func (m UserModel) Insert(username string, email string, password string) (string, string, error) {
+	query := "INSERT INTO users(id, username, email, password, configs, email_token) VALUES($1, $2, $3, $4, $5, $6) RETURNING id"
+	userConfig := UserConfig{
+		TargetLanguage: "en",
+	}
+	config, _ := json.Marshal(userConfig)
+
+	tx, err := m.DB.Begin(context.Background())
+
+	defer tx.Rollback(context.Background())
+
+	passwordHashed, err := bcrypt.GenerateFromPassword([]byte(password), 8)
+	if err != nil {
+		return "", "", err
+	}
+
+	id, err := uuid.NewRandom()
+	if err != nil {
+		return "", "", err
+	}
+
+	token, err := uuid.NewRandom()
+	if err != nil {
+		return "", "", err
+	}
+
+	args := []any{id, username, email, passwordHashed, config, token}
+
+	err = tx.QueryRow(context.Background(), query, args...).Scan(&id)
+	if err != nil {
+		switch {
+		case err.Error() == `ERROR: duplicate key value violates unique constraint "users_username_key" (SQLSTATE 23505)`:
+			return "", "", ErrDuplicateUsername
+
+		case err.Error() == `ERROR: duplicate key value violates unique constraint "users_email_key" (SQLSTATE 23505)`:
+			return "", "", ErrDuplicateEmail
+
+		default:
+			log.Logger.Error().Err(err).Msg("Error in insert of a new user")
+			return "", "", err
+		}
+	}
+
+	err = tx.Commit(context.Background())
+	if err != nil {
+		log.Error().Err(err)
+	}
+
+	return id.String(), token.String(), nil
+}
+
+func (m UserModel) TokenCheck(token uuid.UUID) error {
+	query := `UPDATE users SET email_verified = true, email_token = null WHERE email_token = $1 RETURNING username`
+	tx, err := m.DB.Begin(context.Background())
+	defer tx.Rollback(context.Background())
+	if err != nil {
+		return ErrDuplicateUsername
+	}
+
+	args := []any{token}
+
+	id := ""
+	err = tx.QueryRow(context.Background(), query, args...).Scan(&id)
+	if err != nil {
+		return ErrUserNotFound
+	}
+
+	err = tx.Commit(context.Background())
+	return nil
+}
+
+func (m UserModel) GetByEmail(email string) (*User, error) {
+	query := `SELECT id, username, password, configs FROM users WHERE email = $1`
+	tx, err := m.DB.Begin(context.Background())
+	if err != nil {
+		return nil, err
+	}
+
+	args := []any{email}
+
+	var user User
+
+	err = tx.QueryRow(context.Background(), query, args...).Scan(&user.Id, &user.Username, &user.Password, &user.Configs)
+	if err != nil {
+		return nil, ErrUserNotFound
+	}
+
+	err = tx.Commit(context.Background())
+
+	return &user, nil
+}
+
+func (m UserModel) Get(id string) (*User, error) {
+	query := `SELECT id, username, password, configs FROM users WHERE id = $1`
+	tx, err := m.DB.Begin(context.Background())
+	if err != nil {
+		return nil, err
+	}
+
+	args := []any{id}
+
+	var user User
+
+	err = tx.QueryRow(context.Background(), query, args...).Scan(&user.Id, &user.Username, &user.Password, &user.Configs)
+	if err != nil {
+		return nil, ErrUserNotFound
+	}
+
+	err = tx.Commit(context.Background())
+
+	return &user, nil
+}

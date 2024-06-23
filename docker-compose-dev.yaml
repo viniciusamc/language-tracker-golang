@@ -1,0 +1,59 @@
+version: '3.5'
+
+services:
+  db:
+    image: postgres:latest
+    environment:
+        - POSTGRES_PASSWORD=123
+        - POSTGRES_DB=yaml
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis
+    ports:
+      - '6379:6379'
+
+  mailcatcher:
+    restart: on-failure
+    image: dockage/mailcatcher:0.9.0
+    ports:
+      - '1080:1080'
+      - '1025:1025'
+
+  # api01: &api
+  #   hostname: api01
+  #   build:
+  #     context: .
+  #     dockerfile: ./Dockerfile
+  #   environment:
+  #     - DATABASE_URL=postgres://postgres:123@db/yaml?sslmode=disable
+  #     - REDIS_URL=redis:6379
+  #     - EMAIL_HOST=mailcatcher
+  #     - EMAIL_PORT=1025
+  #     - EMAIL_USER=
+  #     - EMAIL_API_KEY=
+  #     - EMAIL_SEND=
+  #   ports:
+  #     - "8080:8080"
+  #
+  # api02:
+  #   <<: *api
+  #   hostname: api02
+  #   environment:
+  #     - DATABASE_URL=postgres://postgres:123@db/yaml?sslmode=disable
+  #     - REDIS_URL=redis:6379
+  #     - EMAIL_HOST=mailcatcher
+  #     - EMAIL_PORT=1025
+  #     - EMAIL_USER=
+  #     - EMAIL_API_KEY=
+  #     - EMAIL_SEND=
+  #   ports:
+  #     - "8082:8080"
+  #
+  # nginx:
+  #   image: nginx:latest
+  #   volumes:
+  #       - ./infra/nginx.conf:/etc/nginx/nginx.conf:ro
+  #   ports:
+  #     - "3000:3000"
