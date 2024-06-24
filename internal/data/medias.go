@@ -26,19 +26,18 @@ type Medias struct {
 }
 
 type Video struct {
-	ID             string        `json:"id"`
-	IDUser         string        `json:"id_user"`
-	Title          string        `json:"title"`
-	VideoID        string        `json:"video_id"`
-	Episode        interface{}   `json:"episode"`
-	Type           string        `json:"type"`
-	WatchType      string        `json:"watch_type"`
-	Time           time.Duration `json:"time"`
-	TargetLanguage string        `json:"target_language"`
-	CreatedAt      time.Time     `json:"created_at"`
-	TotalWords     int64         `json:"total_words"`
+	ID             string      `json:"id"`
+	IDUser         string      `json:"id_user"`
+	Title          string      `json:"title"`
+	VideoID        string      `json:"video_id"`
+	Episode        interface{} `json:"episode"`
+	Type           string      `json:"type"`
+	WatchType      string      `json:"watch_type"`
+	Time           string      `json:"time"`
+	TargetLanguage string      `json:"target_language"`
+	CreatedAt      time.Time   `json:"created_at"`
+	TotalWords     int64       `json:"total_words"`
 }
-
 
 func ParseDuration(hms string) (time.Duration, error) {
 	parts := strings.Split(hms, ":")
@@ -54,7 +53,7 @@ func ParseDuration(hms string) (time.Duration, error) {
 	return time.ParseDuration(durationString)
 }
 
-func ParseTime(time time.Duration) (string){
+func ParseTime(time time.Duration) string {
 	return fmt.Sprintf("%02d:%02d:%02d", int(time.Hours()), int(time.Minutes())%60, int(time.Seconds())%60)
 }
 
@@ -100,7 +99,7 @@ func (t MediasModel) Insert(userId string, url string, kind string, watchType st
 }
 
 func (t MediasModel) Get(userId string) (Medias, error) {
-	query := `SELECT * FROM medias WHERE id_user = $1`
+	query := `SELECT *, SUM(time) OVER (PARTITION BY time) as total_time, SUM(total_words) OVER (PARTITION BY total_words) as sum_words FROM medias WHERE id_user = $1`
 	ctx := context.Background()
 
 	cache, err := t.RDB.Get(ctx, "medias:user:"+userId).Result()
@@ -114,7 +113,6 @@ func (t MediasModel) Get(userId string) (Medias, error) {
 		if err != nil {
 			return Medias{}, err
 		}
-		println("CACHED")
 		return medias, err
 	}
 
@@ -134,30 +132,22 @@ func (t MediasModel) Get(userId string) (Medias, error) {
 
 	var videos []Video
 	var totalDuration time.Duration
-	var totalWords int64
+	var totalWords int
 	for rows.Next() {
 		var r Video
-		var t string
-		var w int64
-		err := rows.Scan(&r.ID, &r.IDUser, &r.Title, &r.VideoID, &r.Episode, &r.Type, &r.WatchType, &t, &r.TargetLanguage, &r.CreatedAt, &w)
+		var t time.Duration
+		err := rows.Scan(nil, nil, &r.Title, nil, &r.Episode, &r.Type, &r.WatchType, &r.TargetLanguage, &r.CreatedAt, &r.TotalWords, &t, &totalDuration, &totalWords)
 		if err != nil {
 			return Medias{}, err
 		}
-		splitTime := strings.Split(t, ".")
-		formattedTime := splitTime[0]
-		duration, err := ParseDuration(formattedTime)
-		if err != nil {
-			return Medias{}, err
-		}
-		totalDuration += duration
-		totalWords += w
+		r.Time = ParseTime(t)
 		videos = append(videos, r)
 	}
 	var medias Medias
 
 	medias.TotalVideos = len(videos)
 	medias.Videos = videos
-	medias.Time = fmt.Sprintf("%02d:%02d:%02d", int(totalDuration.Hours()), int(totalDuration.Minutes())%60, int(totalDuration.Seconds())%60)
+	medias.Time = ParseTime(totalDuration)
 	medias.TotalWordCount = int(totalWords)
 
 	mediasByte, err := json.Marshal(medias)
