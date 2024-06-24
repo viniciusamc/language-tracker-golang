@@ -97,9 +97,11 @@ func HandleMailTask(ctx context.Context, t *asynq.Task) error {
 		return fmt.Errorf("json.Unmarshal failed: %v: %w", err, asynq.SkipRetry)
 	}
 
-	log.Printf("Sending Email to User: user_id=%s, template_id=%s", p.UserID, p.TemplateID)
-
 	// auth := smtp.PlainAuth("", os.Getenv("EMAIL_USER"), os.Getenv("EMAIL_API_KEY"), os.Getenv("EMAIL_HOST"))
+
+	if os.Getenv("ENVIRONMENT") != "production"{
+		return nil
+	}
 
 	to := []string{"vinicius@example.com"}
 

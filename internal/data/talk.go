@@ -80,8 +80,8 @@ func (t TalkModel) Insert(id string, kind string, minutes int16, targetLanguage 
 }
 
 func (t TalkModel) GetByUser(id string) (DataOutput, error) {
-	query := `SELECT type, time, target_language, created_at FROM output WHERE id_user = $1 ORDER BY created_at ASC`
-	queryAverage := `SELECT AVG(time), SUM(time) FROM output WHERE id_user = $1`
+	query := `SELECT type, time, target_language, created_at, AVG(time) OVER (PARTITION BY time) as avg_time, SUM(time) OVER (PARTITION BY time) AS sum_time FROM output WHERE id_user = $1 ORDER BY created_at ASC
+	`
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
@@ -114,9 +114,10 @@ func (t TalkModel) GetByUser(id string) (DataOutput, error) {
 	}
 
 	var talk []Output
+	var avgTime, totalTime time.Duration
 	for rows.Next() {
 		var r Output
-		err := rows.Scan(&r.Kind, &r.Time, &r.TargetLanguage, &r.CreatedAt)
+		err := rows.Scan(&r.Kind, &r.Time, &r.TargetLanguage, &r.CreatedAt, &avgTime, &totalTime)
 		if err != nil {
 			return DataOutput{}, err
 		}
@@ -127,14 +128,9 @@ func (t TalkModel) GetByUser(id string) (DataOutput, error) {
 
 	output.Output = talk
 
-	var avg, sum time.Duration
-
-	err = tx.QueryRow(ctx, queryAverage, args...).Scan(&avg, &sum)
-	if err != nil {
-		return DataOutput{}, err
-	}
-	output.OutputTotalTime = FormatTime(sum)
-	output.AverageTime = FormatTime(avg)
+// {"level":"error","error":"can't scan into dest[0]: cannot scan NULL into *time.Interval","request_method":"GET","request_url":"/v1/talk","time":"2024-06-24T12:31:33-03:00","message":"An error occurred"}
+	output.OutputTotalTime = FormatTime(totalTime)
+	output.AverageTime = FormatTime(avgTime)
 
 	var count = 1
 	var bigStreak = 1
