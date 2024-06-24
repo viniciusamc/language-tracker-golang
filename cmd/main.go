@@ -104,11 +104,11 @@ func main() {
 	}
 
 	server := http.Server{
-		Addr:    ":8080",
+		Addr:    ":" + os.Getenv("PORT"),
 		Handler: app.routes(),
 	}
 
-	println("running on 8080")
+	println("running on :" + os.Getenv("PORT"))
 
 	err = server.ListenAndServe()
 	if err != nil {
