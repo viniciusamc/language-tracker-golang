@@ -18,3 +18,4 @@ func NewModel(db *pgxpool.Pool, rdb *redis.Client) Models {
 		Medias: MediasModel{db, rdb},
 	}
 }
+

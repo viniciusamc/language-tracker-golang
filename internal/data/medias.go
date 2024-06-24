@@ -39,7 +39,8 @@ type Video struct {
 	TotalWords     int64         `json:"total_words"`
 }
 
-func parseDuration(hms string) (time.Duration, error) {
+
+func ParseDuration(hms string) (time.Duration, error) {
 	parts := strings.Split(hms, ":")
 	if len(parts) != 3 {
 		return 0, errors.New("invalid duration format")
@@ -51,6 +52,10 @@ func parseDuration(hms string) (time.Duration, error) {
 
 	durationString := hours + "h" + minutes + "m" + seconds + "s"
 	return time.ParseDuration(durationString)
+}
+
+func ParseTime(time time.Duration) (string){
+	return fmt.Sprintf("%02d:%02d:%02d", int(time.Hours()), int(time.Minutes())%60, int(time.Seconds())%60)
 }
 
 func ExtractYouTubeVideoID(url string) (string, error) {
@@ -140,7 +145,7 @@ func (t MediasModel) Get(userId string) (Medias, error) {
 		}
 		splitTime := strings.Split(t, ".")
 		formattedTime := splitTime[0]
-		duration, err := parseDuration(formattedTime)
+		duration, err := ParseDuration(formattedTime)
 		if err != nil {
 			return Medias{}, err
 		}

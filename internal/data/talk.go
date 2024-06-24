@@ -3,9 +3,10 @@ package data
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 )
@@ -15,17 +16,7 @@ type TalkModel struct {
 	RDB *redis.Client
 }
 
-type Talk struct {
-	Id             uuid.UUID
-	IdUser         uuid.UUID
-	Kind           string
-	Time           string
-	Summarize      string
-	TargetLanguage string
-	CreatedAt      time.Time
-}
-
-type GeneratedType struct {
+type DataOutput struct {
 	Output          []Output     `json:"output"`
 	OutputTotalTime string       `json:"outputTotalTime"`
 	AverageTime     string       `json:"averageTime"`
@@ -33,18 +24,23 @@ type GeneratedType struct {
 }
 
 type Output struct {
-	ID             string    `json:"id"`
-	IDUser         string    `json:"id_user"`
-	Type           string    `json:"type"`
-	Time           string    `json:"time"`
-	Summarize      string    `json:"summarize"`
-	TargetLanguage string    `json:"target_language"`
-	CreatedAt      time.Time `json:"created_at"`
+	ID             string        `json:"id"`
+	IDUser         string        `json:"id_user"`
+	Kind           string        `json:"type"`
+	Time           time.Duration `json:"time"`
+	Summarize      string        `json:"summarize"`
+	TargetLanguage string        `json:"target_language"`
+	CreatedAt      time.Time     `json:"created_at"`
 }
 
 type OutputStreak struct {
 	LongestStreak int64 `json:"longestStreak"`
 	CurrentStreak int64 `json:"currentStreak"`
+}
+
+func FormatTime(t time.Duration) string {
+	d := time.Duration(t)
+	return fmt.Sprintf("%02d:%02d:%02d", int(d.Hours()), int(d.Minutes())%60, int(d.Seconds())%60)
 }
 
 func (t TalkModel) Insert(id string, kind string, minutes int16, targetLanguage string) error {
@@ -83,28 +79,29 @@ func (t TalkModel) Insert(id string, kind string, minutes int16, targetLanguage 
 	return nil
 }
 
-func (t TalkModel) GetByUser(id string) (*[]Talk, error) {
-	query := `SELECT type, time, target_language, created_at FROM output WHERE id_user = $1`
+func (t TalkModel) GetByUser(id string) (DataOutput, error) {
+	query := `SELECT type, time, target_language, created_at FROM output WHERE id_user = $1 ORDER BY created_at ASC`
+	queryAverage := `SELECT AVG(time), SUM(time) FROM output WHERE id_user = $1`
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	cache, err := t.RDB.Get(ctx, `talk:user:` + id ).Result()
+	cache, err := t.RDB.Get(ctx, `talk:user:`+id).Result()
 	if err != nil && err != redis.Nil {
-		return nil, err
+		return DataOutput{}, err
 	}
 
 	if err != redis.Nil {
-		var talks []Talk
-		err := json.Unmarshal([]byte(cache), &talks)
+		var output DataOutput
+		err := json.Unmarshal([]byte(cache), &output)
 		if err != nil {
-			return nil, err
+			return DataOutput{}, err
 		}
-		return &talks, nil
+		return output, nil
 	}
 
 	tx, err := t.DB.Begin(ctx)
 	if err != nil {
-		return nil, err
+		return DataOutput{}, err
 	}
 
 	defer tx.Rollback(ctx)
@@ -113,24 +110,62 @@ func (t TalkModel) GetByUser(id string) (*[]Talk, error) {
 
 	rows, err := tx.Query(ctx, query, args...)
 	if err != nil {
-		return nil, err
+		return DataOutput{}, err
 	}
 
-	var talk []Talk
+	var talk []Output
 	for rows.Next() {
-		var r Talk
+		var r Output
 		err := rows.Scan(&r.Kind, &r.Time, &r.TargetLanguage, &r.CreatedAt)
 		if err != nil {
-			return nil, err
+			return DataOutput{}, err
 		}
 		talk = append(talk, r)
 	}
 
-	bytes, err := json.Marshal(talk)
-	err = t.RDB.Set(ctx, `talk:user:`+id, bytes, 0).Err()
+	var output DataOutput
+
+	output.Output = talk
+
+	var avg, sum time.Duration
+
+	err = tx.QueryRow(ctx, queryAverage, args...).Scan(&avg, &sum)
 	if err != nil {
-		return nil, err
+		return DataOutput{}, err
+	}
+	output.OutputTotalTime = FormatTime(sum)
+	output.AverageTime = FormatTime(avg)
+
+	var count = 1
+	var bigStreak = 1
+	for i := 1; i < len(talk); i++ {
+		splited := strings.Split(talk[i].CreatedAt.String(), " ")[0]
+		splitb := strings.Split(talk[i-1].CreatedAt.String(), " ")[0]
+
+		splitedP1, _ := time.Parse("2006-01-02", splited)
+		splitbP1, _ := time.Parse("2006-01-02", splitb)
+
+		if splitedP1.Sub(splitbP1) == 24*time.Hour {
+			count++
+		} else {
+			if splitb != splited {
+				count = 1
+			}
+		}
+
+		if count > bigStreak {
+			bigStreak = count
+		}
 	}
 
-	return &talk, nil
+	output.OutputStreak.CurrentStreak = int64(count)
+	output.OutputStreak.LongestStreak = int64(bigStreak)
+
+	bytes, err := json.Marshal(output)
+	err = t.RDB.Set(ctx, `talk:user:`+id, bytes, 0).Err()
+	if err != nil {
+		return DataOutput{}, err
+	}
+
+	return output, nil
 }
