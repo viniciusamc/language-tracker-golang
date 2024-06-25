@@ -68,3 +68,55 @@ class HelloWorldUser(HttpUser):
                 print("Failed to access /v1/talk")
                 print(response.json().get('error'))
 
+
+    @task
+    def get_media(self):
+        if self.token:
+            headers = {'Authorization': f'Bearer {self.token}'}
+            response = self.client.get("/v1/medias", headers=headers)
+            
+            if response.status_code != 200:
+                print("Failed to access /v1/medias")
+                print(response.json().get('error'))
+
+    @task
+    def create_anki(self):
+        if self.token:
+            headers = {'Authorization': f'Bearer {self.token}'}
+            response = self.client.post("/v1/anki", json={"reviewed":fake.random_number(digits=2), "newCards":fake.random_number(digits=2), "time":fake.random_number(digits=2), "target_language": "en"},headers=headers)
+
+            if response.status_code != 201:
+                print("Failed to access /v1/talk")
+                print(response.json().get('error'))
+
+
+    @task
+    def get_anki(self):
+        if self.token:
+            headers = {'Authorization': f'Bearer {self.token}'}
+            response = self.client.get("/v1/anki", headers=headers)
+
+            if response.status_code != 200:
+                print("Failed to access /v1/anki")
+                print(response.json().get('error'))
+                
+    @task
+    def create_vocabulary(self):
+        if self.token:
+            headers = {'Authorization': f'Bearer {self.token}'}
+            response = self.client.post("/v1/vocabulary", json={"reviewed":fake.random_number(digits=4), "target_language": "en"},headers=headers)
+
+            if response.status_code != 201:
+                print("Failed to access /v1/vocabulary")
+                print(response.json().get('error'))
+
+
+    @task
+    def get_vocabulary(self):
+        if self.token:
+            headers = {'Authorization': f'Bearer {self.token}'}
+            response = self.client.get("/v1/vocabulary", headers=headers)
+
+            if response.status_code != 200:
+                print("Failed to access /v1/vocabulary")
+                print(response.json().get('error'))

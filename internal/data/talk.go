@@ -43,6 +43,13 @@ func FormatTime(t time.Duration) string {
 	return fmt.Sprintf("%02d:%02d:%02d", int(d.Hours()), int(d.Minutes())%60, int(d.Seconds())%60)
 }
 
+func ParseMinutes(s int32) string {
+	var min time.Time
+	min = min.Add(time.Duration(s) * time.Minute)
+
+	return min.Format("15:04:05")
+}
+
 func (t TalkModel) Insert(id string, kind string, minutes int16, targetLanguage string) error {
 	query := `INSERT INTO output(id_user, type, time, target_language) VALUES($1,$2,$3,$4)`
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -82,10 +89,10 @@ func (t TalkModel) Insert(id string, kind string, minutes int16, targetLanguage 
 func (t TalkModel) GetByUser(id string) (DataOutput, error) {
 	query := `SELECT type, time, target_language, created_at, AVG(time) OVER (PARTITION BY time) as avg_time, SUM(time) OVER (PARTITION BY time) AS sum_time FROM output WHERE id_user = $1 ORDER BY created_at ASC
 	`
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
+	// ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	// defer cancel()
 
-	cache, err := t.RDB.Get(ctx, `talk:user:`+id).Result()
+	cache, err := t.RDB.Get(context.Background(), `talk:user:`+id).Result()
 	if err != nil && err != redis.Nil {
 		return DataOutput{}, err
 	}
@@ -99,16 +106,16 @@ func (t TalkModel) GetByUser(id string) (DataOutput, error) {
 		return output, nil
 	}
 
-	tx, err := t.DB.Begin(ctx)
+	tx, err := t.DB.Begin(context.Background())
 	if err != nil {
 		return DataOutput{}, err
 	}
 
-	defer tx.Rollback(ctx)
+	defer tx.Rollback(context.Background())
 
 	args := []any{id}
 
-	rows, err := tx.Query(ctx, query, args...)
+	rows, err := tx.Query(context.Background(), query, args...)
 	if err != nil {
 		return DataOutput{}, err
 	}
@@ -124,11 +131,12 @@ func (t TalkModel) GetByUser(id string) (DataOutput, error) {
 		talk = append(talk, r)
 	}
 
+	tx.Commit(context.Background())
+
 	var output DataOutput
 
 	output.Output = talk
 
-// {"level":"error","error":"can't scan into dest[0]: cannot scan NULL into *time.Interval","request_method":"GET","request_url":"/v1/talk","time":"2024-06-24T12:31:33-03:00","message":"An error occurred"}
 	output.OutputTotalTime = FormatTime(totalTime)
 	output.AverageTime = FormatTime(avgTime)
 
@@ -157,8 +165,13 @@ func (t TalkModel) GetByUser(id string) (DataOutput, error) {
 	output.OutputStreak.CurrentStreak = int64(count)
 	output.OutputStreak.LongestStreak = int64(bigStreak)
 
+
 	bytes, err := json.Marshal(output)
-	err = t.RDB.Set(ctx, `talk:user:`+id, bytes, 0).Err()
+	if err != nil {
+		return DataOutput{}, err
+	}
+
+	err = t.RDB.Set(context.Background(), `talk:user:`+id, bytes, 0).Err()
 	if err != nil {
 		return DataOutput{}, err
 	}

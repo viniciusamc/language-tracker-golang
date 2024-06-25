@@ -31,9 +31,16 @@ func (app *application) routes() http.Handler {
 	router.HandleFunc("POST /v1/medias", app.authenticate(app.createMedia))
 	router.HandleFunc("GET /v1/medias", app.authenticate(app.getMedia))
 
+	router.HandleFunc("POST /v1/anki", app.authenticate(app.createAnki))
+	router.HandleFunc("GET /v1/anki", app.authenticate(app.getAnki))
+
+	router.HandleFunc("POST /v1/vocabulary", app.authenticate(app.createVocabulary))
+	router.HandleFunc("GET /v1/vocabulary", app.authenticate(app.getVocabulary))
+
+	router.HandleFunc("POST /v1/books", app.authenticate(app.createBook))
+	router.HandleFunc("GET /v1/books", app.authenticate(app.getBook))
 	return router
 }
-
 
 func (app *application) healthCheck(w http.ResponseWriter, r *http.Request) {
 	app.render.JSON(w, http.StatusOK, map[string]string{"hello": "json"})

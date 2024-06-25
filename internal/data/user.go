@@ -17,11 +17,14 @@ type UserModel struct {
 }
 
 type UserConfig struct {
-	TargetLanguage string `json:"TL"`
+	TargetLanguage      string `json:"TL"`
+	ReadWordsPerMinute  int32  `json:"wpm"`
+	AverageWordsPerPage int32  `json:"averageWordsPage"`
+	DailyGoal           int32  `json:"dailyGoal"`
 }
 
 type User struct {
-	Id             uuid.UUID 
+	Id             uuid.UUID
 	Username       string
 	Email          string
 	Password       string
@@ -42,10 +45,16 @@ func (m UserModel) Insert(username string, email string, password string) (strin
 	query := "INSERT INTO users(id, username, email, password, configs, email_token) VALUES($1, $2, $3, $4, $5, $6) RETURNING id"
 	userConfig := UserConfig{
 		TargetLanguage: "en",
+		DailyGoal: 30,
+		AverageWordsPerPage: 230,
+		ReadWordsPerMinute: 200,
 	}
 	config, _ := json.Marshal(userConfig)
 
 	tx, err := m.DB.Begin(context.Background())
+	if err != nil {
+		return "", "", err
+	}
 
 	defer tx.Rollback(context.Background())
 
@@ -69,10 +78,10 @@ func (m UserModel) Insert(username string, email string, password string) (strin
 	err = tx.QueryRow(context.Background(), query, args...).Scan(&id)
 	if err != nil {
 		switch {
-		case err.Error() == `ERROR: duplicate key value violates unique constraint "users_username_key" (SQLSTATE 23505)`:
+		case err.Error() == `ERROR: duplicate key value violates unique constraint "users_username_unique" (SQLSTATE 23505)`:
 			return "", "", ErrDuplicateUsername
 
-		case err.Error() == `ERROR: duplicate key value violates unique constraint "users_email_key" (SQLSTATE 23505)`:
+		case err.Error() == `ERROR: duplicate key value violates unique constraint "users_email_unique" (SQLSTATE 23505)`:
 			return "", "", ErrDuplicateEmail
 
 		default:

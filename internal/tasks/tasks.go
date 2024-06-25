@@ -125,8 +125,6 @@ func HandleTranscriptTask(ctx context.Context, t *asynq.Task, rdb *redis.Client,
 	opts := []youtubetranscript.Option{
 		youtubetranscript.WithLang(y.TargetLanguage),
 	}
-	log.Printf("Received task: UserId=%s, YoutubeUrl=%s, TargetLanguage=%s, MediaId=%s",
-		y.UserId, y.YoutubeUrl, y.TargetLanguage, y.MediaId)
 	transcript, err := youtubetranscript.GetTranscript(ctx, y.YoutubeUrl, opts...)
 	if err != nil {
 		log.Fatalf("Error fetching transcript: %v", err)
@@ -143,8 +141,6 @@ func HandleTranscriptTask(ctx context.Context, t *asynq.Task, rdb *redis.Client,
 	c.OnHTML("meta[itemprop=duration]", func(e *colly.HTMLElement) {
 		durationContent := e.Attr("content")
 		duration, _ = parseISO8601Duration(durationContent)
-		println(duration)
-		println(durationContent)
 	})
 	err = c.Visit("https://www.youtube.com/watch?v=" + y.YoutubeUrl)
 	if err != nil {

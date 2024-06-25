@@ -9,6 +9,9 @@ type Models struct {
 	Users UserModel
 	Talks TalkModel
 	Medias MediasModel
+	Anki AnkiModel
+	Vocabulary VocabularyModel
+	Book BookModel
 }
 
 func NewModel(db *pgxpool.Pool, rdb *redis.Client) Models {
@@ -16,6 +19,9 @@ func NewModel(db *pgxpool.Pool, rdb *redis.Client) Models {
 		Users: UserModel{db},
 		Talks: TalkModel{db, rdb},
 		Medias: MediasModel{db, rdb},
+		Anki: AnkiModel{db, rdb},
+		Vocabulary: VocabularyModel{db, rdb},
+		Book: BookModel{db, rdb},
 	}
 }
 

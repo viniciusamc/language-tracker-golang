@@ -4,10 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"language-tracker/internal/data"
-	_ "language-tracker/internal/models"
 	"language-tracker/internal/tasks"
 	"net/http"
-	"os"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
@@ -51,11 +49,6 @@ func (app *application) createUser(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-	}
-	if os.Getenv("ENVIRONMENT") != "production" {
-		w.Header().Add("TOKEN", token)
-		app.render.JSON(w, http.StatusOK, map[string]string{"message": "User created with success"})
-		return
 	}
 
 	task, err := tasks.NewMailDeliveryTask(userId, "some:template:id")
