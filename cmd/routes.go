@@ -3,6 +3,7 @@ package main
 import (
 	"expvar"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -39,9 +40,19 @@ func (app *application) routes() http.Handler {
 
 	router.HandleFunc("POST /v1/books", app.authenticate(app.createBook))
 	router.HandleFunc("GET /v1/books", app.authenticate(app.getBook))
+	router.HandleFunc("PATCH /v1/books/{idBook}", app.authenticate(app.updateBookProgress))
+	router.HandleFunc("DELETE /v1/books/{idBook}", app.authenticate(app.deleteBook))
 	return router
 }
 
+type SystemInfo struct {
+	Environment string `json:"environment"`
+	Time time.Time `json:"time"`
+}
+
 func (app *application) healthCheck(w http.ResponseWriter, r *http.Request) {
-	app.render.JSON(w, http.StatusOK, map[string]string{"hello": "json"})
+	app.render.JSON(w, http.StatusOK, map[string]any{"status":"available", "system_info": SystemInfo{
+		Environment: app.config.env.Environment,
+		Time: time.Now(),
+	}})
 }

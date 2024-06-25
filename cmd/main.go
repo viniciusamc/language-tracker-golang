@@ -19,7 +19,8 @@ import (
 type config struct {
 	port int
 	env  struct {
-		JWT_KEY string
+		Environment string
+		JWT_KEY     string
 	}
 	redis struct {
 		port string
@@ -44,6 +45,7 @@ func main() {
 	var configLoaded config
 
 	configLoaded.env.JWT_KEY = "asda"
+	configLoaded.env.Environment = os.Getenv("ENVIRONMENT")
 
 	render := render.New()
 	logger := zerolog.New(os.Stdout).With().Timestamp().Logger()
