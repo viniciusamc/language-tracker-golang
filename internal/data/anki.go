@@ -16,8 +16,8 @@ type AnkiModel struct {
 }
 
 type Anki struct {
-	ID             int64     `json:"id"`
-	IDUser         string    `json:"id_user"`
+	ID             int64     `json:"-"`
+	IDUser         string    `json:"-"`
 	Reviewed       string    `json:"reviewed"`
 	AddedCards     string    `json:"added_cards"`
 	Time           string    `json:"time"`
@@ -26,7 +26,7 @@ type Anki struct {
 }
 
 type AnkiData struct {
-	Anki               []Anki `json:"rows"`
+	Anki               []Anki `json:"anki"`
 	DaysAnki           int32  `json:"daysAnki"`
 	TotalNewCards      int64  `json:"totalNewCards"`
 	TotalReviewed      int64  `json:"totalReviewed"`
@@ -66,19 +66,20 @@ func (t AnkiModel) Insert(user string, reviewed int32, newCards int32, interval 
 func (t AnkiModel) GetByUser(user string) (*AnkiData, error) {
 	query := " SELECT time, target_language, created_at, SUM(reviewed) OVER (PARTITION BY reviewed) as totalReviewed, SUM(time) OVER (PARTITION BY time) AS sum_time, SUM(added_cards) OVER (PARTITION BY added_cards) as totalAdded FROM anki WHERE id_user = $1 ORDER BY created_at ASC"
 
-	cache, err := t.RDB.Get(context.Background(), "anki:user:"+user).Result()
-	if err != nil && err != redis.Nil {
-		return nil, err
-	}
-
-	if err != redis.Nil {
-		var data AnkiData
-		err := json.Unmarshal([]byte(cache), &data)
-		if err != nil {
-			return nil, err
-		}
-		return &data, nil
-	}
+	// cache, err := t.RDB.Get(context.Background(), "anki:user:"+user).Result()
+	// if err != nil && err != redis.Nil {
+	// 	return nil, err
+	// }
+	//
+	// if err != redis.Nil {
+	// 	var data AnkiData
+	// 	err := json.Unmarshal([]byte(cache), &data)
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+	// 	println("anki cached")
+	// 	return &data, nil
+	// }
 
 	tx, err := t.DB.Begin(context.Background())
 	if err != nil {
@@ -115,7 +116,7 @@ func (t AnkiModel) GetByUser(user string) (*AnkiData, error) {
 		return nil, err
 	}
 
-	var count int32 = 1
+	var count int32 = 0
 	for i := 1; i < len(ankis); i++ {
 		splited := strings.Split(ankis[i].CreatedAt.String(), " ")[0]
 		splitb := strings.Split(ankis[i-1].CreatedAt.String(), " ")[0]
@@ -129,6 +130,13 @@ func (t AnkiModel) GetByUser(user string) (*AnkiData, error) {
 	}
 
 	data.Anki = ankis
+
+	if len(ankis) == 0 {
+		data = AnkiData{
+			Anki: make([]Anki, 1),
+		}
+	}
+
 	data.TotalTimeInSeconds = FormatTime(totalTime)
 	data.DaysAnki = count
 	bytes, err := json.Marshal(data)

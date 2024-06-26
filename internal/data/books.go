@@ -2,6 +2,7 @@ package data
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -28,11 +29,12 @@ type DataBooks struct {
 	TotalTimeBooks   string         `json:"totalTimeBooks"`
 	TotalBooksWords  int64          `json:"totalBooksWords"`
 	TotalBooksPages  int64          `json:"totalBooksPages"`
+	TotalBooks       int            `json:"totalBooks"`
 }
 
 type Book struct {
-	ID             string    `json:"id"`
-	IDUser         string    `json:"id_user"`
+	ID             string    `json:"-"`
+	IDUser         string    `json:"-"`
 	Title          string    `json:"title"`
 	Description    *string   `json:"description"`
 	TargetLanguage string    `json:"target_language"`
@@ -40,16 +42,16 @@ type Book struct {
 }
 
 type BooksHistory struct {
-	ID         int64     `json:"id"`
-	IDUser     string    `json:"id_user"`
-	IDBook     string    `json:"id_book"`
-	ActualPage int64     `json:"actual_page"`
-	TotalPages int64     `json:"total_pages"`
-	ReadType   string    `json:"read_type"`
-	TotalWords int64     `json:"total_words"`
-	Time       string    `json:"time"`
-	TimeDiff   *string   `json:"time_diff"`
-	CreatedAt  time.Time `json:"created_at"`
+	ID         int64         `json:"-"`
+	IDUser     string        `json:"-"`
+	IDBook     string        `json:"id_book"`
+	ActualPage int64         `json:"actual_page"`
+	TotalPages int64         `json:"total_pages"`
+	ReadType   string        `json:"read_type"`
+	TotalWords int64         `json:"total_words"`
+	Time       string        `json:"time"`
+	TimeDiff   *string       `json:"time_diff"`
+	CreatedAt  time.Time     `json:"created_at"`
 	RawTime    time.Duration `json:"-"`
 }
 
@@ -99,6 +101,21 @@ func (b BookModel) GetByUser(user *User) (*DataBooks, error) {
 
 	ctx := context.Background()
 
+	cache, err := b.RDB.Get(ctx, "books:user:"+user.Id.String()).Result()
+	if err != nil && err != redis.Nil {
+		return nil, err
+	}
+
+	if err != redis.Nil {
+		var data DataBooks
+		err := json.Unmarshal([]byte(cache), &data)
+		if err != nil {
+			return nil, err
+		}
+		println("books cached")
+		return &data, nil
+	}
+
 	tx, err := b.DB.Begin(ctx)
 	if err != nil {
 		return nil, err
@@ -127,9 +144,9 @@ func (b BookModel) GetByUser(user *User) (*DataBooks, error) {
 	}
 
 	var booksHistory []BooksHistory
+	data := DataBooks{}
 	for rows.Next() {
-		var b BooksHistory
-		// var t time.Duration
+		b := BooksHistory{}
 		err := rows.Scan(&b.ID, &b.IDBook, &b.ActualPage, &b.TotalPages, &b.ReadType, &b.TotalWords, &b.CreatedAt, &b.RawTime)
 		if err != nil {
 			return nil, err
@@ -146,7 +163,6 @@ func (b BookModel) GetByUser(user *User) (*DataBooks, error) {
 		lastHistoryMap[b.IDBook] = b
 	}
 
-	var data DataBooks
 	for _, a := range lastHistoryMap {
 		data.BooksLastHistory = append(data.BooksLastHistory, a)
 		data.DurationBooks += a.RawTime.Abs()
@@ -157,9 +173,26 @@ func (b BookModel) GetByUser(user *User) (*DataBooks, error) {
 	data.Books = books
 	data.BooksHistory = booksHistory
 	data.TotalTimeBooks = ParseTime(data.DurationBooks)
-	data.DurationBooks = 0
+	data.TotalBooks = len(books)
 
-	b.RDB.Del(ctx, "books:user:"+user.Id.String())
+	if len(books) == 0 {
+		data = DataBooks{
+			Books: make([]Book, 1),
+			BooksHistory: make([]BooksHistory, 1),
+			BooksLastHistory: make([]BooksHistory, 1),
+			TotalTimeBooks: "00:00:00",
+		}
+	}
+
+	bytes, err := json.Marshal(data)
+	if err != nil {
+		return nil, err
+	}
+
+	err = b.RDB.Set(ctx, "books:user:"+user.Id.String(), bytes, 0).Err()
+	if err != nil {
+		return nil, err
+	}
 
 	err = tx.Commit(ctx)
 	if err != nil {
@@ -235,6 +268,8 @@ func (b BookModel) Delete(user *User, idBook string) error {
 	if err != nil {
 		return err
 	}
+
+	b.RDB.Del(ctx, "books:user:"+user.Id.String())
 
 	err = tx.Commit(ctx)
 	if err != nil {

@@ -24,30 +24,30 @@ type UserConfig struct {
 }
 
 type User struct {
-	Id             uuid.UUID
+	Id             uuid.UUID `json:"-"`
 	Username       string
-	Email          string
-	Password       string
-	Configs        UserConfig
-	Email_token    uuid.UUID
-	Email_verified bool
+	Email          string `json:"-"`
+	Password       string `json:"-"`
+	Configs        UserConfig `json:"configs"`
+	Email_token    uuid.UUID `json:"-"`
+	Email_verified bool      `json:"-"`
 	Created_at     time.Time
 	Updated_at     time.Time
 }
 
 var (
-	ErrDuplicateEmail    = errors.New("duplicate email")
-	ErrDuplicateUsername = errors.New("duplicate username")
-	ErrUserNotFound      = errors.New("User not found")
+	ErrDuplicateEmail    = errors.New("an account with this email already exists")
+	ErrDuplicateUsername = errors.New("this username is already taken, please choose another")
+	ErrUserNotFound      = errors.New("the specified user could not be found")
 )
 
 func (m UserModel) Insert(username string, email string, password string) (string, string, error) {
 	query := "INSERT INTO users(id, username, email, password, configs, email_token) VALUES($1, $2, $3, $4, $5, $6) RETURNING id"
 	userConfig := UserConfig{
-		TargetLanguage: "en",
-		DailyGoal: 30,
+		TargetLanguage:      "en",
+		DailyGoal:           30,
 		AverageWordsPerPage: 230,
-		ReadWordsPerMinute: 200,
+		ReadWordsPerMinute:  200,
 	}
 	config, _ := json.Marshal(userConfig)
 
@@ -120,21 +120,29 @@ func (m UserModel) TokenCheck(token uuid.UUID) error {
 
 func (m UserModel) GetByEmail(email string) (*User, error) {
 	query := `SELECT id, username, password, configs FROM users WHERE email = $1`
-	tx, err := m.DB.Begin(context.Background())
+
+	ctx := context.Background()
+
+	tx, err := m.DB.Begin(ctx)
 	if err != nil {
 		return nil, err
 	}
+
+	defer tx.Rollback(ctx)
 
 	args := []any{email}
 
 	var user User
 
-	err = tx.QueryRow(context.Background(), query, args...).Scan(&user.Id, &user.Username, &user.Password, &user.Configs)
+	err = tx.QueryRow(ctx, query, args...).Scan(&user.Id, &user.Username, &user.Password, &user.Configs)
 	if err != nil {
 		return nil, ErrUserNotFound
 	}
 
-	err = tx.Commit(context.Background())
+	err = tx.Commit(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	return &user, nil
 }

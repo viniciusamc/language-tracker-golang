@@ -2,6 +2,7 @@ package data
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -19,12 +20,12 @@ type DataVocabulary struct {
 }
 
 type Vocabulary struct {
-	ID                  string    `json:"id"`
+	ID                  string    `json:"-"`
 	Vocabulary          int       `json:"vocabulary"`
 	DifferenceLastMonth int64     `json:"difference_last_month"`
 	URL                 *string   `json:"url"`
 	TargetLanguage      string    `json:"target_language"`
-	Date                time.Time `json:"date"`
+	Date                time.Time `json:"created_at"`
 }
 
 func (v VocabularyModel) Insert(user string, vocabulary int32, targetLanguage string) error {
@@ -64,6 +65,21 @@ func (v VocabularyModel) GetByUser(user string) (*DataVocabulary, error) {
 
 	ctx := context.Background()
 
+	cache, err := v.RDB.Get(ctx, "vocabulary:user:"+user).Result()
+	if err != nil && err != redis.Nil {
+		return nil, err
+	}
+
+	if err != redis.Nil {
+		var data DataVocabulary
+		err := json.Unmarshal([]byte(cache), &data)
+		if err != nil {
+			return nil, err
+		}
+		println("vocabulary cached")
+		return &data, nil
+	}
+
 	tx, err := v.DB.Begin(ctx)
 	if err != nil {
 		return nil, err
@@ -86,6 +102,20 @@ func (v VocabularyModel) GetByUser(user string) (*DataVocabulary, error) {
 	}
 
 	DataVocabulary.Vocabulary = vocabulary
+
+	if len(vocabulary) == 0 {
+		DataVocabulary.Vocabulary = make([]Vocabulary, 1)
+	}
+
+	bytes, err := json.Marshal(DataVocabulary)
+	if err != nil {
+		return nil, err
+	}
+
+	err = v.RDB.Set(ctx, "vocabulary:user:"+user, bytes, 0).Err()
+	if err != nil {
+		return nil, err
+	}
 
 	err = tx.Commit(ctx)
 	if err != nil {

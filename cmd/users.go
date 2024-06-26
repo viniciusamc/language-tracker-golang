@@ -2,7 +2,6 @@ package main
 
 import (
 	"errors"
-	"fmt"
 	"language-tracker/internal/data"
 	"language-tracker/internal/tasks"
 	"net/http"
@@ -10,6 +9,14 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 )
+
+type DataUser struct {
+	Medias     *data.Medias         `json:"medias"`
+	Output     *data.DataOutput     `json:"talk"`
+	Anki       *data.AnkiData       `json:"anki"`
+	Books      *data.DataBooks      `json:"books"`
+	Vocabulary *data.DataVocabulary `json:"vocabulary"`
+}
 
 func (app *application) createUser(w http.ResponseWriter, r *http.Request) {
 	var input struct {
@@ -29,7 +36,7 @@ func (app *application) createUser(w http.ResponseWriter, r *http.Request) {
 	err = validate.Struct(input)
 	if err != nil {
 		errors := err.(validator.ValidationErrors)
-		http.Error(w, fmt.Sprintf("Validation error: %s", errors), http.StatusBadRequest)
+		app.badRequestResponse(w, r, errors)
 		return
 	}
 
@@ -82,5 +89,52 @@ func (app *application) activateAccount(w http.ResponseWriter, r *http.Request) 
 	app.render.JSON(w, 200, map[string]string{"message": "Success"})
 }
 
+func (app *application) showUserSettings(w http.ResponseWriter, r *http.Request){
+	user := app.contextGetUser(r)
+
+	app.render.JSON(w, 200, user)
+}
+
 func (app *application) showUser(w http.ResponseWriter, r *http.Request) {
+	user := app.contextGetUser(r)
+
+	medias, err := app.models.Medias.Get(user.Id.String())
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	output, err := app.models.Talks.GetByUser(user.Id.String())
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	anki, err := app.models.Anki.GetByUser(user.Id.String())
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	books, err := app.models.Book.GetByUser(user)
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	vocabulary, err := app.models.Vocabulary.GetByUser(user.Id.String())
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	data := DataUser{
+		Medias: &medias,
+		Output: &output,
+		Anki:   anki,
+		Books:  books,
+		Vocabulary: vocabulary,
+	}
+
+	app.render.JSON(w, 200, data)
 }

@@ -53,7 +53,7 @@ func (app *application) createAuthenticationTokenHandler(w http.ResponseWriter, 
 		return
 	}
 
-	err = app.render.JSON(w, 201, map[string]string{"token": string(jwtBytes)})
+	err = app.render.JSON(w, 201, map[string]string{"user": user.Username, "token": string(jwtBytes)})
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 	}

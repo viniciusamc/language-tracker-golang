@@ -26,8 +26,8 @@ type Medias struct {
 }
 
 type Video struct {
-	ID             string      `json:"id"`
-	IDUser         string      `json:"id_user"`
+	ID             string      `json:"-"`
+	IDUser         string      `json:"-"`
 	Title          string      `json:"title"`
 	VideoID        string      `json:"video_id"`
 	Episode        interface{} `json:"episode"`
@@ -113,6 +113,7 @@ func (t MediasModel) Get(userId string) (Medias, error) {
 		if err != nil {
 			return Medias{}, err
 		}
+		println("medias cached")
 		return medias, err
 	}
 
@@ -149,6 +150,10 @@ func (t MediasModel) Get(userId string) (Medias, error) {
 	medias.Videos = videos
 	medias.Time = ParseTime(totalDuration)
 	medias.TotalWordCount = int(totalWords)
+
+	if len(videos) == 0 {
+		medias.Videos = make([]Video, 1)
+	}
 
 	mediasByte, err := json.Marshal(medias)
 	if err != nil {

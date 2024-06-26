@@ -24,8 +24,8 @@ type DataOutput struct {
 }
 
 type Output struct {
-	ID             string        `json:"id"`
-	IDUser         string        `json:"id_user"`
+	ID             string        `json:"-"`
+	IDUser         string        `json:"-"`
 	Kind           string        `json:"type"`
 	Time           time.Duration `json:"time"`
 	Summarize      string        `json:"summarize"`
@@ -103,6 +103,7 @@ func (t TalkModel) GetByUser(id string) (DataOutput, error) {
 		if err != nil {
 			return DataOutput{}, err
 		}
+		println("talk cached")
 		return output, nil
 	}
 
@@ -131,7 +132,10 @@ func (t TalkModel) GetByUser(id string) (DataOutput, error) {
 		talk = append(talk, r)
 	}
 
-	tx.Commit(context.Background())
+	err = tx.Commit(context.Background())
+	if err != nil {
+		return DataOutput{}, err
+	}
 
 	var output DataOutput
 
@@ -139,6 +143,10 @@ func (t TalkModel) GetByUser(id string) (DataOutput, error) {
 
 	output.OutputTotalTime = FormatTime(totalTime)
 	output.AverageTime = FormatTime(avgTime)
+
+	if len(talk) == 0 {
+		output.Output = make([]Output, 1)
+	}
 
 	var count = 1
 	var bigStreak = 1
@@ -164,7 +172,6 @@ func (t TalkModel) GetByUser(id string) (DataOutput, error) {
 
 	output.OutputStreak.CurrentStreak = int64(count)
 	output.OutputStreak.LongestStreak = int64(bigStreak)
-
 
 	bytes, err := json.Marshal(output)
 	if err != nil {

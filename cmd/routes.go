@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/cors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
@@ -15,13 +16,20 @@ func (app *application) routes() http.Handler {
 
 	router.Use(middleware.Logger)
 
+	router.Use(cors.Handler(cors.Options{
+		AllowedOrigins: []string{"*"},
+		AllowedHeaders: []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
+		AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+	}))
+
 	router.Handle("GET /debug/vars", expvar.Handler())
 	router.Handle("GET /metrics", promhttp.Handler())
 
 	router.HandleFunc("GET /health", app.healthCheck)
 
 	router.HandleFunc("POST /v1/users", app.createUser)
-	router.HandleFunc("GET /v1/users", app.showUser)
+	router.HandleFunc("GET /v1/user", app.authenticate(app.showUser))
+	router.HandleFunc("GET /v1/user/settings", app.authenticate(app.showUserSettings))
 	router.HandleFunc("GET /v1/users/token/{token}", app.activateAccount)
 
 	router.HandleFunc("POST /v1/sessions", app.createAuthenticationTokenHandler)
@@ -46,13 +54,13 @@ func (app *application) routes() http.Handler {
 }
 
 type SystemInfo struct {
-	Environment string `json:"environment"`
-	Time time.Time `json:"time"`
+	Environment string    `json:"environment"`
+	Time        time.Time `json:"time"`
 }
 
 func (app *application) healthCheck(w http.ResponseWriter, r *http.Request) {
-	app.render.JSON(w, http.StatusOK, map[string]any{"status":"available", "system_info": SystemInfo{
+	app.render.JSON(w, http.StatusOK, map[string]any{"status": "available", "system_info": SystemInfo{
 		Environment: app.config.env.Environment,
-		Time: time.Now(),
+		Time:        time.Now(),
 	}})
 }
