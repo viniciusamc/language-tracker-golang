@@ -147,12 +147,13 @@ func (b BookModel) GetByUser(user *User) (*DataBooks, error) {
 	data := DataBooks{}
 	for rows.Next() {
 		b := BooksHistory{}
-		err := rows.Scan(&b.ID, &b.IDBook, &b.ActualPage, &b.TotalPages, &b.ReadType, &b.TotalWords, &b.CreatedAt, &b.RawTime)
+		var rawTimeString string
+		err := rows.Scan(&b.ID, &b.IDBook, &b.ActualPage, &b.TotalPages, &b.ReadType, &b.TotalWords, &b.CreatedAt, &rawTimeString)
 		if err != nil {
 			return nil, err
 		}
 
-		b.Time = FormatTime(b.RawTime)
+		b.Time = rawTimeString
 
 		booksHistory = append(booksHistory, b)
 	}

@@ -24,13 +24,13 @@ type DataOutput struct {
 }
 
 type Output struct {
-	ID             string        `json:"-"`
-	IDUser         string        `json:"-"`
-	Kind           string        `json:"type"`
-	Time           time.Duration `json:"time"`
-	Summarize      string        `json:"summarize"`
-	TargetLanguage string        `json:"target_language"`
-	CreatedAt      time.Time     `json:"created_at"`
+	ID             string    `json:"-"`
+	IDUser         string    `json:"-"`
+	Kind           string    `json:"type"`
+	Time           string    `json:"time"`
+	Summarize      string    `json:"summarize"`
+	TargetLanguage string    `json:"target_language"`
+	CreatedAt      time.Time `json:"created_at"`
 }
 
 type OutputStreak struct {
@@ -87,7 +87,7 @@ func (t TalkModel) Insert(id string, kind string, minutes int16, targetLanguage 
 }
 
 func (t TalkModel) GetByUser(id string) (DataOutput, error) {
-	query := `SELECT type, time, target_language, created_at, AVG(time) OVER (PARTITION BY time) as avg_time, SUM(time) OVER (PARTITION BY time) AS sum_time FROM output WHERE id_user = $1 ORDER BY created_at ASC
+	query := `SELECT type, time, target_language, created_at, AVG(time::interval) OVER (PARTITION BY time) as avg_time, SUM(time::interval) OVER (PARTITION BY time) AS sum_time FROM output WHERE id_user = $1 ORDER BY created_at ASC
 	`
 	// ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	// defer cancel()

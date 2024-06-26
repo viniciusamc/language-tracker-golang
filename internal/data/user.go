@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -26,11 +27,11 @@ type UserConfig struct {
 type User struct {
 	Id             uuid.UUID `json:"-"`
 	Username       string
-	Email          string `json:"-"`
-	Password       string `json:"-"`
+	Email          string     `json:"-"`
+	Password       string     `json:"-"`
 	Configs        UserConfig `json:"configs"`
-	Email_token    uuid.UUID `json:"-"`
-	Email_verified bool      `json:"-"`
+	Email_token    uuid.UUID  `json:"-"`
+	Email_verified bool       `json:"-"`
 	Created_at     time.Time
 	Updated_at     time.Time
 }
@@ -136,6 +137,7 @@ func (m UserModel) GetByEmail(email string) (*User, error) {
 
 	err = tx.QueryRow(ctx, query, args...).Scan(&user.Id, &user.Username, &user.Password, &user.Configs)
 	if err != nil {
+		fmt.Println(err)
 		return nil, ErrUserNotFound
 	}
 
