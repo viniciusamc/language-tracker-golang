@@ -182,7 +182,7 @@ func (m UserModel) Get(id string) (*User, error) {
 	return &user, nil
 }
 
-func (m UserModel) MonthReport(user *User) (*[]MonthReport, *[]DailyReport, error) {
+func (m UserModel) Report(user *User) (*[]MonthReport, *[]DailyReport, error) {
 	query := `SELECT
 	    DATE_TRUNC('month', created_at) AS month,
 	    SUM(time) AS total_time

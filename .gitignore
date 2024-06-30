@@ -3,3 +3,5 @@ tmp/build-errors.log
 tmp/main
 test/tmp
 
+
+.env
