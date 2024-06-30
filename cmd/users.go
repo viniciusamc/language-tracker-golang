@@ -5,7 +5,7 @@ import (
 	"language-tracker/internal/data"
 	"language-tracker/internal/tasks"
 	"net/http"
-	"sync"
+	"time"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
@@ -98,191 +98,83 @@ func (app *application) showUserSettings(w http.ResponseWriter, r *http.Request)
 	app.render.JSON(w, 200, user)
 }
 
-// func (app *application) showUser(w http.ResponseWriter, r *http.Request) {
-// 	user := app.contextGetUser(r)
-//
-// 	monthReport, dailyReport, err := app.models.Users.Report(user)
-// 	if err != nil {
-// 		app.badRequestResponse(w, r, err)
-// 		return
-// 	}
-//
-// 	medias, err := app.models.Medias.Get(user.Id.String())
-// 	if err != nil {
-// 		app.badRequestResponse(w, r, err)
-// 		return
-// 	}
-//
-// 	output, err := app.models.Talks.GetByUser(user.Id.String())
-// 	if err != nil {
-// 		app.badRequestResponse(w, r, err)
-// 		return
-// 	}
-//
-// 	anki, err := app.models.Anki.GetByUser(user.Id.String())
-// 	if err != nil {
-// 		app.badRequestResponse(w, r, err)
-// 		return
-// 	}
-//
-// 	books, err := app.models.Book.GetByUser(user)
-// 	if err != nil {
-// 		app.badRequestResponse(w, r, err)
-// 		return
-// 	}
-//
-// 	vocabulary, err := app.models.Vocabulary.GetByUser(user.Id.String())
-// 	if err != nil {
-// 		app.badRequestResponse(w, r, err)
-// 		return
-// 	}
-//
-// 	data := DataUser{
-// 		Medias:      &medias,
-// 		Output:      &output,
-// 		Anki:        anki,
-// 		Books:       books,
-// 		Vocabulary:  vocabulary,
-// 		MonthReport: monthReport,
-// 		DailyReport: dailyReport,
-// 	}
-//
-// 	app.render.JSON(w, 200, data)
-// }
-
 func (app *application) showUser(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+
 	user := app.contextGetUser(r)
-	var wg sync.WaitGroup
 
-	mediasCh := make(chan *data.Medias, 1)
-	outputCh := make(chan *data.DataOutput, 1)
-	ankiCh := make(chan *data.AnkiData, 1)
-	booksCh := make(chan *data.DataBooks, 1)
-	vocabularyCh := make(chan *data.DataVocabulary, 1)
-	monthReportCh := make(chan *[]data.MonthReport, 1)
-	dailyReportCh := make(chan *[]data.DailyReport, 1)
-	errCh := make(chan error, 6) 
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		monthReport, dailyReport, err := app.models.Users.Report(user)
-		if err != nil {
-			errCh <- err
-			return
-		}
-		monthReportCh <- monthReport
-		dailyReportCh <- dailyReport
-	}()
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		medias, err := app.models.Medias.Get(user.Id.String())
-		if err != nil {
-			errCh <- err
-			return
-		}
-		mediasCh <- &medias
-	}()
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		output, err := app.models.Talks.GetByUser(user.Id.String())
-		if err != nil {
-			errCh <- err
-			return
-		}
-		outputCh <- &output
-	}()
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		anki, err := app.models.Anki.GetByUser(user.Id.String())
-		if err != nil {
-			errCh <- err
-			return
-		}
-		ankiCh <- anki
-	}()
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		books, err := app.models.Book.GetByUser(user)
-		if err != nil {
-			errCh <- err
-			return
-		}
-		booksCh <- books
-	}()
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		vocabulary, err := app.models.Vocabulary.GetByUser(user.Id.String())
-		if err != nil {
-			errCh <- err
-			return
-		}
-		vocabularyCh <- vocabulary
-	}()
-
-	go func() {
-		wg.Wait()
-		close(monthReportCh)
-		close(dailyReportCh)
-		close(mediasCh)
-		close(outputCh)
-		close(ankiCh)
-		close(booksCh)
-		close(vocabularyCh)
-		close(errCh)
-	}()
-
-	var (
-		monthReport  *[]data.MonthReport
-		dailyReport  *[]data.DailyReport
-		medias       *data.Medias
-		output       *data.DataOutput
-		anki         *data.AnkiData
-		books        *data.DataBooks
-		vocabulary   *data.DataVocabulary
-		err          error
-	)
-	for {
-		select {
-		case monthReport = <-monthReportCh:
-		case dailyReport = <-dailyReportCh:
-		case medias = <-mediasCh:
-		case output = <-outputCh:
-		case anki = <-ankiCh:
-		case books = <-booksCh:
-		case vocabulary = <-vocabularyCh:
-		case err = <-errCh:
-			if err != nil {
-				app.badRequestResponse(w, r, err)
-				return
-			}
-		}
-
-		if len(monthReportCh) == 0 && len(dailyReportCh) == 0 && len(mediasCh) == 0 && 
-		   len(outputCh) == 0 && len(ankiCh) == 0 && len(booksCh) == 0 && len(vocabularyCh) == 0 {
-			break
-		}
+	// Measure time for Report
+	startReport := time.Now()
+	monthReport, dailyReport, err := app.models.Users.Report(user)
+	elapsedReport := time.Since(startReport)
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
 	}
+	app.log.Printf("Time taken for Report: %s", elapsedReport)
+
+	// Measure time for Medias.Get
+	startMedias := time.Now()
+	medias, err := app.models.Medias.Get(user.Id.String())
+	elapsedMedias := time.Since(startMedias)
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+	app.log.Printf("Time taken for Medias.Get: %s", elapsedMedias)
+
+	// Measure time for Talks.GetByUser
+	startOutput := time.Now()
+	output, err := app.models.Talks.GetByUser(user.Id.String())
+	elapsedOutput := time.Since(startOutput)
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+	app.log.Printf("Time taken for Talks.GetByUser: %s", elapsedOutput)
+
+	// Measure time for Anki.GetByUser
+	startAnki := time.Now()
+	anki, err := app.models.Anki.GetByUser(user.Id.String())
+	elapsedAnki := time.Since(startAnki)
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+	app.log.Printf("Time taken for Anki.GetByUser: %s", elapsedAnki)
+
+	// Measure time for Book.GetByUser
+	startBooks := time.Now()
+	books, err := app.models.Book.GetByUser(user)
+	elapsedBooks := time.Since(startBooks)
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+	app.log.Printf("Time taken for Book.GetByUser: %s", elapsedBooks)
+
+	// Measure time for Vocabulary.GetByUser
+	startVocabulary := time.Now()
+	vocabulary, err := app.models.Vocabulary.GetByUser(user.Id.String())
+	elapsedVocabulary := time.Since(startVocabulary)
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+	app.log.Printf("Time taken for Vocabulary.GetByUser: %s", elapsedVocabulary)
 
 	data := DataUser{
-		MonthReport:  monthReport,
-		DailyReport:  dailyReport,
-		Medias:       medias,
-		Output:       output,
-		Anki:         anki,
-		Books:        books,
-		Vocabulary:   vocabulary,
+		Medias:      &medias,
+		Output:      &output,
+		Anki:        anki,
+		Books:       books,
+		Vocabulary:  vocabulary,
+		MonthReport: monthReport,
+		DailyReport: dailyReport,
 	}
 
 	app.render.JSON(w, 200, data)
+
+	elapsedTotal := time.Since(start)
+	app.log.Printf("Total time taken for showUser: %s", elapsedTotal)
 }

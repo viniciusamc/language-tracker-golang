@@ -99,8 +99,14 @@ func (t MediasModel) Insert(userId string, url string, kind string, watchType st
 }
 
 func (t MediasModel) Get(userId string) (Medias, error) {
-	// query := `SELECT , SUM(time) OVER (PARTITION BY time) as total_time, SUM(total_words) OVER (PARTITION BY total_words) as sum_words FROM medias WHERE id_user = $1`
-	query := `SELECT title, video_id, episode, type, watch_type, time, created_at, target_language, SUM(time) OVER (PARTITION BY id_user) as total_time, SUM(total_words) OVER (PARTITION BY id_user) as sum_words FROM medias WHERE id_user = $1`
+	query := `
+		SELECT 
+			title, video_id, episode, type, watch_type, time, created_at, target_language, 
+			SUM(time) OVER (PARTITION BY id_user) as total_time, 
+			SUM(total_words) OVER (PARTITION BY id_user) as sum_words 
+		FROM medias 
+		WHERE id_user = $1`
+
 	ctx := context.Background()
 
 	cache, err := t.RDB.Get(ctx, "medias:user:"+userId).Result()
@@ -114,23 +120,15 @@ func (t MediasModel) Get(userId string) (Medias, error) {
 		if err != nil {
 			return Medias{}, err
 		}
-		println("medias cached")
-		return medias, err
+		fmt.Println("medias cached")
+		return medias, nil
 	}
 
-	args := []any{userId}
-
-	tx, err := t.DB.Begin(ctx)
+	rows, err := t.DB.Query(ctx, query, userId)
 	if err != nil {
 		return Medias{}, err
 	}
-
-	rows, err := tx.Query(ctx, query, args...)
-	if err != nil {
-		return Medias{}, err
-	}
-
-	err = tx.Commit(ctx)
+	defer rows.Close()
 
 	var videos []Video
 	var totalDuration time.Duration
@@ -145,12 +143,15 @@ func (t MediasModel) Get(userId string) (Medias, error) {
 		r.Time = t
 		videos = append(videos, r)
 	}
-	var medias Medias
+	if err := rows.Err(); err != nil {
+		return Medias{}, err
+	}
 
+	var medias Medias
 	medias.TotalVideos = len(videos)
 	medias.Videos = videos
 	medias.Time = ParseTime(totalDuration)
-	medias.TotalWordCount = int(totalWords)
+	medias.TotalWordCount = totalWords
 
 	if len(videos) == 0 {
 		medias.Videos = make([]Video, 1)
@@ -161,7 +162,7 @@ func (t MediasModel) Get(userId string) (Medias, error) {
 		return Medias{}, err
 	}
 
-	err = t.RDB.Set(ctx, "medias:user:"+userId, mediasByte, 0).Err()
+	err = t.RDB.Set(ctx, "medias:user:"+userId, mediasByte, 24*time.Hour).Err()
 	if err != nil {
 		return Medias{}, err
 	}
