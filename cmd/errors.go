@@ -3,15 +3,20 @@ package main
 import (
 	"fmt"
 	"net/http"
+
+	// "github.com/pkg/errors"
 )
 
 type envelope map[string]any
 
 func (app *application) logError(r *http.Request, err error) {
+	// wrappedErr := errors.WithStack(err)
+
 	app.log.Error().
 		Err(err).
 		Str("request_method", r.Method).
 		Str("request_url", r.URL.String()).
+		Stack().
 		Msg("An error occurred")
 }
 
@@ -24,6 +29,7 @@ func (app *application) errorResponse(w http.ResponseWriter, r *http.Request, st
 			Err(err).
 			Str("request_method", r.Method).
 			Str("request_url", r.URL.String()).
+			Stack().
 			Msg("Error writing JSON response")
 		w.WriteHeader(http.StatusInternalServerError)
 	}

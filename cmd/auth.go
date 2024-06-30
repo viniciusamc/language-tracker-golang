@@ -2,7 +2,6 @@ package main
 
 import (
 	"errors"
-	"fmt"
 	"language-tracker/internal/data"
 	"net/http"
 	"time"
@@ -22,8 +21,6 @@ func (app *application) createAuthenticationTokenHandler(w http.ResponseWriter, 
 		app.badRequestResponse(w, r, err)
 		return
 	}
-
-	fmt.Print(input.Email)
 
 	user, err := app.models.Users.GetByEmail(input.Email)
 	if err != nil {

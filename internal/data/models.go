@@ -16,7 +16,7 @@ type Models struct {
 
 func NewModel(db *pgxpool.Pool, rdb *redis.Client) Models {
 	return Models{
-		Users: UserModel{db},
+		Users: UserModel{db, rdb},
 		Talks: TalkModel{db, rdb},
 		Medias: MediasModel{db, rdb},
 		Anki: AnkiModel{db, rdb},

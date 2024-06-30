@@ -50,6 +50,10 @@ func ParseMinutes(s int32) string {
 	return min.Format("15:04:05")
 }
 
+func FormatMinutesToDuration(t string) string {
+	return ""
+}
+
 func (t TalkModel) Insert(id string, kind string, minutes int16, targetLanguage string) error {
 	query := `INSERT INTO output(id_user, type, time, target_language) VALUES($1,$2,$3,$4)`
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)

@@ -63,6 +63,7 @@ func (app *application) getMedia(w http.ResponseWriter, r *http.Request){
 
 	err = app.render.JSON(w, 200, data)
 	if err != nil {
+		app.log.Debug().Stack()
 		app.serverErrorResponse(w, r, err)
 		return
 	}

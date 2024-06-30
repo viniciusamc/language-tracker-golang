@@ -66,20 +66,20 @@ func (t AnkiModel) Insert(user string, reviewed int32, newCards int32, interval 
 func (t AnkiModel) GetByUser(user string) (*AnkiData, error) {
 	query := " SELECT time, target_language, created_at, SUM(reviewed::int) OVER (PARTITION BY reviewed::int) as totalReviewed, SUM(time::interval) OVER (PARTITION BY time) AS sum_time, SUM(added_cards::integer) OVER (PARTITION BY added_cards) as totalAdded FROM anki WHERE id_user = $1 ORDER BY created_at ASC"
 
-	// cache, err := t.RDB.Get(context.Background(), "anki:user:"+user).Result()
-	// if err != nil && err != redis.Nil {
-	// 	return nil, err
-	// }
-	//
-	// if err != redis.Nil {
-	// 	var data AnkiData
-	// 	err := json.Unmarshal([]byte(cache), &data)
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-	// 	println("anki cached")
-	// 	return &data, nil
-	// }
+	cache, err := t.RDB.Get(context.Background(), "anki:user:"+user).Result()
+	if err != nil && err != redis.Nil {
+		return nil, err
+	}
+
+	if err != redis.Nil {
+		var data AnkiData
+		err := json.Unmarshal([]byte(cache), &data)
+		if err != nil {
+			return nil, err
+		}
+		println("anki cached")
+		return &data, nil
+	}
 
 	tx, err := t.DB.Begin(context.Background())
 	if err != nil {
@@ -105,6 +105,7 @@ func (t AnkiModel) GetByUser(user string) (*AnkiData, error) {
 		if err != nil {
 			return nil, err
 		}
+		totalTime =+ totalTime
 
 		// a.Time = FormatTime(t)
 

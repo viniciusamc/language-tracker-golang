@@ -100,7 +100,7 @@ func (t MediasModel) Insert(userId string, url string, kind string, watchType st
 
 func (t MediasModel) Get(userId string) (Medias, error) {
 	// query := `SELECT , SUM(time) OVER (PARTITION BY time) as total_time, SUM(total_words) OVER (PARTITION BY total_words) as sum_words FROM medias WHERE id_user = $1`
-	query := `SELECT title, video_id, episode, type, watch_type, time, created_at, target_language, SUM(time) OVER (PARTITION BY time) as total_time, SUM(total_words) OVER (PARTITION BY total_words) as sum_words FROM medias WHERE id_user = $1`
+	query := `SELECT title, video_id, episode, type, watch_type, time, created_at, target_language, SUM(time) OVER (PARTITION BY id_user) as total_time, SUM(total_words) OVER (PARTITION BY id_user) as sum_words FROM medias WHERE id_user = $1`
 	ctx := context.Background()
 
 	cache, err := t.RDB.Get(ctx, "medias:user:"+userId).Result()
@@ -130,7 +130,7 @@ func (t MediasModel) Get(userId string) (Medias, error) {
 		return Medias{}, err
 	}
 
-	tx.Commit(ctx)
+	err = tx.Commit(ctx)
 
 	var videos []Video
 	var totalDuration time.Duration
@@ -142,7 +142,7 @@ func (t MediasModel) Get(userId string) (Medias, error) {
 		if err != nil {
 			return Medias{}, err
 		}
-		// r.Time = ParseTime(t)
+		r.Time = t
 		videos = append(videos, r)
 	}
 	var medias Medias

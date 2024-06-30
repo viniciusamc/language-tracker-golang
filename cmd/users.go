@@ -11,11 +11,13 @@ import (
 )
 
 type DataUser struct {
-	Medias     *data.Medias         `json:"medias"`
-	Output     *data.DataOutput     `json:"talk"`
-	Anki       *data.AnkiData       `json:"anki"`
-	Books      *data.DataBooks      `json:"books"`
-	Vocabulary *data.DataVocabulary `json:"vocabulary"`
+	Medias      *data.Medias         `json:"medias"`
+	Output      *data.DataOutput     `json:"talk"`
+	Anki        *data.AnkiData       `json:"anki"`
+	Books       *data.DataBooks      `json:"books"`
+	Vocabulary  *data.DataVocabulary `json:"vocabulary"`
+	MonthReport *[]data.MonthReport  `json:"month_report"`
+	DailyReport *[]data.DailyReport  `json:"daily_report"`
 }
 
 func (app *application) createUser(w http.ResponseWriter, r *http.Request) {
@@ -89,7 +91,7 @@ func (app *application) activateAccount(w http.ResponseWriter, r *http.Request) 
 	app.render.JSON(w, 200, map[string]string{"message": "Success"})
 }
 
-func (app *application) showUserSettings(w http.ResponseWriter, r *http.Request){
+func (app *application) showUserSettings(w http.ResponseWriter, r *http.Request) {
 	user := app.contextGetUser(r)
 
 	app.render.JSON(w, 200, user)
@@ -97,6 +99,12 @@ func (app *application) showUserSettings(w http.ResponseWriter, r *http.Request)
 
 func (app *application) showUser(w http.ResponseWriter, r *http.Request) {
 	user := app.contextGetUser(r)
+
+	monthReport, dailyReport, err := app.models.Users.MonthReport(user)
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
 
 	medias, err := app.models.Medias.Get(user.Id.String())
 	if err != nil {
@@ -129,11 +137,13 @@ func (app *application) showUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := DataUser{
-		Medias: &medias,
-		Output: &output,
-		Anki:   anki,
-		Books:  books,
-		Vocabulary: vocabulary,
+		Medias:      &medias,
+		Output:      &output,
+		Anki:        anki,
+		Books:       books,
+		Vocabulary:  vocabulary,
+		MonthReport: monthReport,
+		DailyReport: dailyReport,
 	}
 
 	app.render.JSON(w, 200, data)

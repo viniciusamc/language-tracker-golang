@@ -13,6 +13,7 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/pkgerrors"
 	"github.com/unrolled/render"
 )
 
@@ -36,6 +37,10 @@ type application struct {
 	config *config
 }
 
+func init() {
+	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
+}
+
 func main() {
 	err := godotenv.Load()
 	if err != nil {
@@ -48,7 +53,8 @@ func main() {
 	configLoaded.env.Environment = os.Getenv("ENVIRONMENT")
 
 	render := render.New()
-	logger := zerolog.New(os.Stdout).With().Timestamp().Logger()
+	logger := zerolog.New(os.Stdout).With().Timestamp().Stack().Logger()
+	
 
 	pool, err := pgxpool.New(context.Background(), os.Getenv("DATABASE_URL"))
 	if err != nil {
