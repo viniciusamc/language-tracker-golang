@@ -2,6 +2,7 @@ package data
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,6 +12,10 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
+)
+
+var (
+	InvalidUrl = errors.New("Invalid Youtube URL")
 )
 
 type MediasModel struct {
@@ -26,17 +31,18 @@ type Medias struct {
 }
 
 type Video struct {
-	ID             string      `json:"-"`
-	IDUser         string      `json:"-"`
-	Title          string      `json:"title"`
-	VideoID        string      `json:"video_id"`
-	Episode        interface{} `json:"episode"`
-	Type           string      `json:"type"`
-	WatchType      string      `json:"watch_type"`
-	Time           string      `json:"time"`
-	TargetLanguage string      `json:"target_language"`
-	CreatedAt      time.Time   `json:"created_at"`
-	TotalWords     int         `json:"total_words"`
+	ID             string         `json:"-"`
+	IDUser         string         `json:"-"`
+	Title          string         `json:"title"`
+	VideoID        sql.NullString `json:"video_id"`
+	Episode        sql.NullString `json:"episode"`
+	Type           string         `json:"type"`
+	WatchType      string         `json:"watch_type"`
+	Time           string         `json:"time"`
+	TargetLanguage string         `json:"target_language"`
+	CreatedAt      time.Time      `json:"created_at"`
+	TotalWords     int            `json:"total_words"`
+	Kind           string         `json:"source"`
 }
 
 func ParseDuration(hms string) (time.Duration, error) {
@@ -61,7 +67,7 @@ func ExtractYouTubeVideoID(url string) (string, error) {
 	re := regexp.MustCompile(`(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})`)
 	match := re.FindStringSubmatch(url)
 	if len(match) < 2 {
-		return "", fmt.Errorf("invalid YouTube URL")
+		return "", InvalidUrl
 	}
 	return match[1], nil
 }
@@ -103,7 +109,8 @@ func (t MediasModel) Get(userId string) (Medias, error) {
 		SELECT 
 			title, video_id, episode, type, watch_type, time, created_at, target_language, 
 			SUM(time) OVER (PARTITION BY id_user) as total_time, 
-			SUM(total_words) OVER (PARTITION BY id_user) as sum_words 
+			SUM(total_words) OVER (PARTITION BY id_user) as sum_words,
+			total_words
 		FROM medias 
 		WHERE id_user = $1`
 
@@ -118,9 +125,9 @@ func (t MediasModel) Get(userId string) (Medias, error) {
 		var medias Medias
 		err := json.Unmarshal([]byte(cache), &medias)
 		if err != nil {
+			t.RDB.Del(ctx, `medias:user:`+userId)
 			return Medias{}, err
 		}
-		fmt.Println("medias cached")
 		return medias, nil
 	}
 
@@ -135,12 +142,13 @@ func (t MediasModel) Get(userId string) (Medias, error) {
 	var totalWords int
 	for rows.Next() {
 		var r Video
-		var t string
-		err := rows.Scan(&r.Title, &r.VideoID, &r.Episode, &r.Type, &r.WatchType, &t, &r.CreatedAt, &r.TargetLanguage, &totalDuration, &totalWords)
+		var t time.Duration
+		err := rows.Scan(&r.Title, &r.VideoID, &r.Episode, &r.Type, &r.WatchType, &t, &r.CreatedAt, &r.TargetLanguage, &totalDuration, &totalWords, &r.TotalWords)
 		if err != nil {
 			return Medias{}, err
 		}
-		r.Time = t
+		r.Time = ParseTime(t)
+		r.Kind = "Medias"
 		videos = append(videos, r)
 	}
 	if err := rows.Err(); err != nil {

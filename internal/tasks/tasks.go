@@ -35,7 +35,6 @@ type TranscriptPayload struct {
 	YoutubeUrl     string
 }
 
-
 func parseISO8601Duration(iso8601 string) (string, error) {
 	re := regexp.MustCompile(`PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?`)
 	matches := re.FindStringSubmatch(iso8601)
@@ -99,7 +98,7 @@ func HandleMailTask(ctx context.Context, t *asynq.Task) error {
 
 	// auth := smtp.PlainAuth("", os.Getenv("EMAIL_USER"), os.Getenv("EMAIL_API_KEY"), os.Getenv("EMAIL_HOST"))
 
-	if os.Getenv("ENVIRONMENT") != "production"{
+	if os.Getenv("ENVIRONMENT") != "production" {
 		return nil
 	}
 
@@ -126,8 +125,10 @@ func HandleTranscriptTask(ctx context.Context, t *asynq.Task, rdb *redis.Client,
 		youtubetranscript.WithLang(y.TargetLanguage),
 	}
 	transcript, err := youtubetranscript.GetTranscript(ctx, y.YoutubeUrl, opts...)
-	if err != nil {
-		log.Fatalf("Error fetching transcript: %v", err)
+
+	if err != nil && !strings.Contains(err.Error(), "no transcript found") {
+		fmt.Println(err.Error())
+		return err
 	}
 
 	var title, duration string
@@ -166,7 +167,7 @@ func HandleTranscriptTask(ctx context.Context, t *asynq.Task, rdb *redis.Client,
 
 	defer tx.Rollback(ctx)
 
-	args := []any{len(separeted), y.UserId, y.MediaId, title, duration}
+	args := []any{len(separeted) - 1, y.UserId, y.MediaId, title, duration}
 
 	_, err = tx.Exec(ctx, query, args...)
 	if err != nil {

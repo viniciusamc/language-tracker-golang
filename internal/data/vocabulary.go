@@ -26,6 +26,7 @@ type Vocabulary struct {
 	URL                 *string   `json:"url"`
 	TargetLanguage      string    `json:"target_language"`
 	Date                time.Time `json:"created_at"`
+	Kind                string    `json:"source"`
 }
 
 func (v VocabularyModel) Insert(user string, vocabulary int32, targetLanguage string) error {
@@ -76,7 +77,6 @@ func (v VocabularyModel) GetByUser(user string) (*DataVocabulary, error) {
 		if err != nil {
 			return nil, err
 		}
-		println("vocabulary cached")
 		return &data, nil
 	}
 
@@ -98,6 +98,7 @@ func (v VocabularyModel) GetByUser(user string) (*DataVocabulary, error) {
 		if err != nil {
 			return nil, err
 		}
+		v.Kind = "Vocabulary"
 		vocabulary = append(vocabulary, v)
 	}
 

@@ -2,7 +2,6 @@ package main
 
 import (
 	"net/http"
-	"strconv"
 
 	"github.com/go-playground/validator/v10"
 )
@@ -10,7 +9,7 @@ import (
 func (app *application) createTalk(w http.ResponseWriter, r *http.Request) {
 	var input struct {
 		Type string `json:"type" validate:"required"`
-		Time string `json:"time" validate:"required"`
+		Time int `json:"time" validate:"required"`
 	}
 
 	err := app.readJSON(w, r, &input)
@@ -19,13 +18,7 @@ func (app *application) createTalk(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	timeInt, err := strconv.Atoi(input.Time)
-	if err != nil {
-		app.errorResponse(w, r, 400, "Invalid Time")
-		return
-	}
-
-	if timeInt > 4000 || timeInt < 0 {
+	if input.Time > 4000 || input.Time < 0 {
 		app.errorResponse(w, r, 400, "Minutes Max is 4000")
 		return
 	}
@@ -41,7 +34,7 @@ func (app *application) createTalk(w http.ResponseWriter, r *http.Request) {
 	user := app.contextGetUser(r)
 
 
-	err = app.models.Talks.Insert(user.Id.String(), input.Type, int16(timeInt), user.Configs.TargetLanguage)
+	err = app.models.Talks.Insert(user.Id.String(), input.Type, int16(input.Time), user.Configs.TargetLanguage)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return

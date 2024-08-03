@@ -15,11 +15,12 @@ func (app *application) routes() http.Handler {
 	router := chi.NewRouter()
 
 	router.Use(middleware.Logger)
+	router.Use(app.recovery)
 
 	router.Use(cors.Handler(cors.Options{
 		AllowedOrigins: []string{"*"},
 		AllowedHeaders: []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
-		AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"},
 	}))
 
 	router.Handle("GET /debug/vars", expvar.Handler())

@@ -1,7 +1,19 @@
-./tmp/
-tmp/build-errors.log
+/tmp/
+/test/tmp/
+/.env
+
 tmp/main
-test/tmp
+tmp/build-errors.log
 
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
 
-.env
+*.test
+
+*.out
+
+go.work
+go.work.sum

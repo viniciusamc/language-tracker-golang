@@ -25,6 +25,7 @@ type DataBooks struct {
 	Books            []Book         `json:"books"`
 	BooksHistory     []BooksHistory `json:"booksHistory"`
 	BooksLastHistory []BooksHistory `json:"booksLastHistory"`
+	Kind             string         `json:"source"`
 	DurationBooks    time.Duration  `json:"-"`
 	TotalTimeBooks   string         `json:"totalTimeBooks"`
 	TotalBooksWords  int64          `json:"totalBooksWords"`
@@ -33,12 +34,13 @@ type DataBooks struct {
 }
 
 type Book struct {
-	ID             string    `json:"-"`
+	ID             string    `json:"id"`
 	IDUser         string    `json:"-"`
 	Title          string    `json:"title"`
 	Description    *string   `json:"description"`
 	TargetLanguage string    `json:"target_language"`
 	CreatedAt      time.Time `json:"created_at"`
+	Kind           string    `json:"source"`
 }
 
 type BooksHistory struct {
@@ -53,10 +55,11 @@ type BooksHistory struct {
 	TimeDiff   *string       `json:"time_diff"`
 	CreatedAt  time.Time     `json:"created_at"`
 	RawTime    time.Duration `json:"-"`
+	Kind       string        `json:"source"`
 }
 
-func (b BookModel) Insert(user *User, title string, description string, pages string, readPages string, readType string, targetLanguage string) error {
-	query := "INSERT INTO books(id_user, title, description, target_language) VALUES($1, $2, $3, $4) RETURNING id"
+func (b BookModel) Insert(user *User, title string, pages string, targetLanguage string) error {
+	query := "INSERT INTO books(id_user, title, target_language) VALUES($1, $2, $3) RETURNING id"
 
 	ctx := context.Background()
 
@@ -67,7 +70,7 @@ func (b BookModel) Insert(user *User, title string, description string, pages st
 
 	var idBook uuid.UUID
 
-	args := []any{user.Id.String(), title, description, targetLanguage}
+	args := []any{user.Id.String(), title, targetLanguage}
 	err = tx.QueryRow(ctx, query, args...).Scan(&idBook)
 	if err != nil {
 		return err
@@ -78,7 +81,7 @@ func (b BookModel) Insert(user *User, title string, description string, pages st
 	totalWords := user.Configs.ReadWordsPerMinute * user.Configs.AverageWordsPerPage
 	totalTime := totalWords / user.Configs.ReadWordsPerMinute
 
-	args = []any{user.Id.String(), idBook, readPages, pages, readType, totalWords, ParseMinutes(totalTime)}
+	args = []any{user.Id.String(), idBook, 0, pages, "None", totalWords, ParseMinutes(totalTime)}
 
 	_, err = tx.Exec(ctx, query, args...)
 	if err != nil {
@@ -97,7 +100,7 @@ func (b BookModel) Insert(user *User, title string, description string, pages st
 
 func (b BookModel) GetByUser(user *User) (*DataBooks, error) {
 	query := "SELECT id, title, description, target_language, created_at FROM books WHERE id_user = $1"
-	queryHistory := "SELECT id,id_book,actual_page, total_pages, read_type, total_words, created_at, time FROM books_history WHERE id_user = $1"
+	queryHistory := "SELECT id,id_book,actual_page, total_pages, read_type, total_words, created_at, time::interval FROM books_history WHERE id_user = $1"
 
 	ctx := context.Background()
 
@@ -112,7 +115,6 @@ func (b BookModel) GetByUser(user *User) (*DataBooks, error) {
 		if err != nil {
 			return nil, err
 		}
-		println("books cached")
 		return &data, nil
 	}
 
@@ -134,6 +136,7 @@ func (b BookModel) GetByUser(user *User) (*DataBooks, error) {
 		if err != nil {
 			return nil, err
 		}
+		b.Kind = "Books"
 
 		books = append(books, b)
 	}
@@ -147,13 +150,14 @@ func (b BookModel) GetByUser(user *User) (*DataBooks, error) {
 	data := DataBooks{}
 	for rows.Next() {
 		b := BooksHistory{}
-		var rawTimeString string
+		var rawTimeString time.Duration
 		err := rows.Scan(&b.ID, &b.IDBook, &b.ActualPage, &b.TotalPages, &b.ReadType, &b.TotalWords, &b.CreatedAt, &rawTimeString)
 		if err != nil {
 			return nil, err
 		}
 
-		b.Time = rawTimeString
+		b.Time = ParseTime(rawTimeString)
+		b.Kind = "BooksHistory"
 
 		booksHistory = append(booksHistory, b)
 	}
@@ -178,10 +182,10 @@ func (b BookModel) GetByUser(user *User) (*DataBooks, error) {
 
 	if len(books) == 0 {
 		data = DataBooks{
-			Books: make([]Book, 1),
-			BooksHistory: make([]BooksHistory, 1),
+			Books:            make([]Book, 1),
+			BooksHistory:     make([]BooksHistory, 1),
 			BooksLastHistory: make([]BooksHistory, 1),
-			TotalTimeBooks: "00:00:00",
+			TotalTimeBooks:   "00:00:00",
 		}
 	}
 
@@ -205,7 +209,7 @@ func (b BookModel) GetByUser(user *User) (*DataBooks, error) {
 
 func (b BookModel) UpdateBook(user *User, idBook string, readPages int, readType string) error {
 	query := "INSERT INTO books_history(id_user, id_book, actual_page, read_type, total_words, time_diff, time, total_pages) VALUES($1, $2, $3, $4, $5, $6, $7, $8)"
-	queryHistory := "SELECT actual_page, total_pages, time FROM books_history WHERE id_user = $1 AND id_book = $2 ORDER BY created_at LIMIT 1"
+	queryHistory := "SELECT actual_page, total_pages, time::interval FROM books_history WHERE id_user = $1 AND id_book = $2 ORDER BY created_at LIMIT 1"
 
 	ctx := context.Background()
 

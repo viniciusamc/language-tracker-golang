@@ -9,10 +9,7 @@ import (
 func (app *application) createBook(w http.ResponseWriter, r *http.Request) {
 	var input struct {
 		Title          string `json:"title"`
-		Description    string `json:"description"`
 		Pages          string `json:"pages"`
-		ReadPages      string `json:"read_pages"`
-		ReadType       string `json:"read_type"`
 		TargetLanguage string `json:"target_language"`
 	}
 
@@ -24,7 +21,7 @@ func (app *application) createBook(w http.ResponseWriter, r *http.Request) {
 
 	user := app.contextGetUser(r)
 
-	err = app.models.Book.Insert(user, input.Title, input.Description, input.Pages, input.ReadPages, input.ReadType, input.TargetLanguage)
+	err = app.models.Book.Insert(user, input.Title, input.Pages, input.TargetLanguage)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
@@ -54,8 +51,9 @@ func (app *application) getBook(w http.ResponseWriter, r *http.Request) {
 func (app *application) updateBookProgress(w http.ResponseWriter, r *http.Request) {
 	idBook := r.PathValue("idBook")
 	var input struct {
-		ReadPages int    `json:"read_pages"`
-		ReadType  string `json:"read_type"`
+		ReadPages      int    `json:"read_pages"`
+		ReadType       string `json:"read_type"`
+		TargetLanguage string `json:"target_language"`
 	}
 
 	err := app.readJSON(w, r, &input)

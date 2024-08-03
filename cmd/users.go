@@ -5,13 +5,13 @@ import (
 	"language-tracker/internal/data"
 	"language-tracker/internal/tasks"
 	"net/http"
-	"time"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 )
 
 type DataUser struct {
+	User        *data.User           `json:"user"`
 	Medias      *data.Medias         `json:"medias"`
 	Output      *data.DataOutput     `json:"talk"`
 	Anki        *data.AnkiData       `json:"anki"`
@@ -99,71 +99,46 @@ func (app *application) showUserSettings(w http.ResponseWriter, r *http.Request)
 }
 
 func (app *application) showUser(w http.ResponseWriter, r *http.Request) {
-	start := time.Now()
-
 	user := app.contextGetUser(r)
 
-	// Measure time for Report
-	startReport := time.Now()
 	monthReport, dailyReport, err := app.models.Users.Report(user)
-	elapsedReport := time.Since(startReport)
 	if err != nil {
-		app.badRequestResponse(w, r, err)
+		app.serverErrorResponse(w, r, err)
 		return
 	}
-	app.log.Printf("Time taken for Report: %s", elapsedReport)
 
-	// Measure time for Medias.Get
-	startMedias := time.Now()
 	medias, err := app.models.Medias.Get(user.Id.String())
-	elapsedMedias := time.Since(startMedias)
 	if err != nil {
-		app.badRequestResponse(w, r, err)
+		app.serverErrorResponse(w, r, err)
 		return
 	}
-	app.log.Printf("Time taken for Medias.Get: %s", elapsedMedias)
 
-	// Measure time for Talks.GetByUser
-	startOutput := time.Now()
 	output, err := app.models.Talks.GetByUser(user.Id.String())
-	elapsedOutput := time.Since(startOutput)
 	if err != nil {
-		app.badRequestResponse(w, r, err)
+		app.serverErrorResponse(w, r, err)
 		return
 	}
-	app.log.Printf("Time taken for Talks.GetByUser: %s", elapsedOutput)
 
-	// Measure time for Anki.GetByUser
-	startAnki := time.Now()
 	anki, err := app.models.Anki.GetByUser(user.Id.String())
-	elapsedAnki := time.Since(startAnki)
 	if err != nil {
-		app.badRequestResponse(w, r, err)
+		app.serverErrorResponse(w, r, err)
 		return
 	}
-	app.log.Printf("Time taken for Anki.GetByUser: %s", elapsedAnki)
 
-	// Measure time for Book.GetByUser
-	startBooks := time.Now()
 	books, err := app.models.Book.GetByUser(user)
-	elapsedBooks := time.Since(startBooks)
 	if err != nil {
-		app.badRequestResponse(w, r, err)
+		app.serverErrorResponse(w, r, err)
 		return
 	}
-	app.log.Printf("Time taken for Book.GetByUser: %s", elapsedBooks)
 
-	// Measure time for Vocabulary.GetByUser
-	startVocabulary := time.Now()
 	vocabulary, err := app.models.Vocabulary.GetByUser(user.Id.String())
-	elapsedVocabulary := time.Since(startVocabulary)
 	if err != nil {
-		app.badRequestResponse(w, r, err)
+		app.serverErrorResponse(w, r, err)
 		return
 	}
-	app.log.Printf("Time taken for Vocabulary.GetByUser: %s", elapsedVocabulary)
 
 	data := DataUser{
+		User:        user,
 		Medias:      &medias,
 		Output:      &output,
 		Anki:        anki,
@@ -174,7 +149,4 @@ func (app *application) showUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	app.render.JSON(w, 200, data)
-
-	elapsedTotal := time.Since(start)
-	app.log.Printf("Total time taken for showUser: %s", elapsedTotal)
 }

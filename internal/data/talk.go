@@ -19,6 +19,7 @@ type TalkModel struct {
 type DataOutput struct {
 	Output          []Output     `json:"output"`
 	OutputTotalTime string       `json:"outputTotalTime"`
+	Kind            string       `json:"source"`
 	AverageTime     string       `json:"averageTime"`
 	OutputStreak    OutputStreak `json:"outputStreak"`
 }
@@ -31,6 +32,7 @@ type Output struct {
 	Summarize      string    `json:"summarize"`
 	TargetLanguage string    `json:"target_language"`
 	CreatedAt      time.Time `json:"created_at"`
+	Source         string    `json:"source"`
 }
 
 type OutputStreak struct {
@@ -107,7 +109,6 @@ func (t TalkModel) GetByUser(id string) (DataOutput, error) {
 		if err != nil {
 			return DataOutput{}, err
 		}
-		println("talk cached")
 		return output, nil
 	}
 
@@ -133,6 +134,7 @@ func (t TalkModel) GetByUser(id string) (DataOutput, error) {
 		if err != nil {
 			return DataOutput{}, err
 		}
+		r.Source = "Talk"
 		talk = append(talk, r)
 	}
 

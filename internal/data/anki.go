@@ -18,11 +18,12 @@ type AnkiModel struct {
 type Anki struct {
 	ID             int64     `json:"-"`
 	IDUser         string    `json:"-"`
-	Reviewed       string    `json:"reviewed"`
-	AddedCards     string    `json:"added_cards"`
+	Reviewed       int       `json:"reviewed"`
+	AddedCards     int       `json:"added_cards"`
 	Time           string    `json:"time"`
 	TargetLanguage string    `json:"target_language"`
 	CreatedAt      time.Time `json:"created_at"`
+	Kind           string    `json:"source"`
 }
 
 type AnkiData struct {
@@ -33,7 +34,7 @@ type AnkiData struct {
 	TotalTimeInSeconds string `json:"totalTimeInSeconds"`
 }
 
-func (t AnkiModel) Insert(user string, reviewed int32, newCards int32, interval int32, targetLanguage string) error {
+func (t AnkiModel) Insert(user string, reviewed int, newCards int, interval int, targetLanguage string) error {
 	query := "INSERT INTO anki(id_user, reviewed, added_cards, time, target_language) VALUES($1,$2,$3,$4,$5)"
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -46,7 +47,7 @@ func (t AnkiModel) Insert(user string, reviewed int32, newCards int32, interval 
 
 	defer tx.Rollback(ctx)
 
-	args := []any{user, reviewed, newCards, ParseMinutes(interval), targetLanguage}
+	args := []any{user, reviewed, newCards, ParseMinutes(int32(interval)), targetLanguage}
 
 	_, err = tx.Exec(ctx, query, args...)
 	if err != nil {
@@ -64,22 +65,21 @@ func (t AnkiModel) Insert(user string, reviewed int32, newCards int32, interval 
 }
 
 func (t AnkiModel) GetByUser(user string) (*AnkiData, error) {
-	query := " SELECT time, target_language, created_at, SUM(reviewed::int) OVER (PARTITION BY reviewed::int) as totalReviewed, SUM(time::interval) OVER (PARTITION BY time) AS sum_time, SUM(added_cards::integer) OVER (PARTITION BY added_cards) as totalAdded FROM anki WHERE id_user = $1 ORDER BY created_at ASC"
+	query := "SELECT time, target_language, created_at, SUM(reviewed::int) OVER (PARTITION BY reviewed::int) as totalReviewed, SUM(time::interval) OVER (PARTITION BY time) AS sum_time, SUM(added_cards::integer) OVER (PARTITION BY added_cards) as totalAdded FROM anki WHERE id_user = $1 ORDER BY created_at ASC"
 
-	cache, err := t.RDB.Get(context.Background(), "anki:user:"+user).Result()
-	if err != nil && err != redis.Nil {
-		return nil, err
-	}
-
-	if err != redis.Nil {
-		var data AnkiData
-		err := json.Unmarshal([]byte(cache), &data)
-		if err != nil {
-			return nil, err
-		}
-		println("anki cached")
-		return &data, nil
-	}
+	// cache, err := t.RDB.Get(context.Background(), "anki:user:"+user).Result()
+	// if err != nil && err != redis.Nil {
+	// 	return nil, err
+	// }
+	//
+	// if err != redis.Nil {
+	// 	var data AnkiData
+	// 	err := json.Unmarshal([]byte(cache), &data)
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+	// 	return &data, nil
+	// }
 
 	tx, err := t.DB.Begin(context.Background())
 	if err != nil {
@@ -100,14 +100,15 @@ func (t AnkiModel) GetByUser(user string) (*AnkiData, error) {
 	var totalTime time.Duration
 	for rows.Next() {
 		var a Anki
-		var t string
-		err := rows.Scan(&t, &a.TargetLanguage, &a.CreatedAt, &data.TotalReviewed, &totalTime, &data.TotalNewCards)
+		var t time.Duration
+		err := rows.Scan(&t, &a.TargetLanguage, &a.CreatedAt, &a.Reviewed, &totalTime, &a.AddedCards)
 		if err != nil {
 			return nil, err
 		}
-		totalTime =+ totalTime
+		totalTime = +totalTime
+		a.Kind = "Anki"
 
-		// a.Time = FormatTime(t)
+		a.Time = FormatTime(t)
 
 		ankis = append(ankis, a)
 	}

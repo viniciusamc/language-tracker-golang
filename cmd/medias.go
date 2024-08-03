@@ -1,6 +1,8 @@
 package main
 
 import (
+	"errors"
+	"language-tracker/internal/data"
 	"language-tracker/internal/tasks"
 	"net/http"
 
@@ -12,7 +14,7 @@ func (app *application) createMedia(w http.ResponseWriter, r *http.Request) {
 		Url            string `json:"url" validate:"required"`
 		Kind           string `json:"type"`
 		WatchType      string `json:"watch_type"`
-		TargetLanguage string `json:"target_language"`
+		TargetLanguage string `json:"target_language" validate:"required"`
 	}
 
 	err := app.readJSON(w, r, &input)
@@ -32,8 +34,14 @@ func (app *application) createMedia(w http.ResponseWriter, r *http.Request) {
 
 	idMedia, videoId, err := app.models.Medias.Insert(user.Id.String(), input.Url, input.Kind, input.WatchType, input.TargetLanguage)
 	if err != nil {
-		app.serverErrorResponse(w, r, err)
-		return
+		switch {
+		case errors.Is(err, data.InvalidUrl):
+			app.badRequestResponse(w, r, err)
+			return
+		default:
+			app.serverErrorResponse(w, r, err)
+			return
+		}
 	}
 
 	task, err := tasks.NewTranscriptTask(user.Id.String(), idMedia, videoId, input.TargetLanguage)

@@ -1,7 +1,9 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"language-tracker/internal/data"
 	"net/http"
 	"strings"
@@ -67,5 +69,29 @@ func (app *application) authenticate(next http.HandlerFunc) http.HandlerFunc {
 		r = app.contextSetUser(r, user)
 
 		next.ServeHTTP(w, r)
+	})
+}
+
+func (app *application) recovery(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		defer func() {
+			err := recover()
+			if err != nil {
+				fmt.Println(err)
+
+				jsonBody, _ := json.Marshal(map[string]string{
+					"error": "There was an internal server error",
+				})
+
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusInternalServerError)
+				w.Write(jsonBody)
+			}
+
+		}()
+
+		next.ServeHTTP(w, r)
+
 	})
 }

@@ -34,7 +34,7 @@ type User struct {
 	Configs        UserConfig `json:"configs"`
 	Email_token    uuid.UUID  `json:"-"`
 	Email_verified bool       `json:"-"`
-	Created_at     time.Time
+	Created_at     time.Time  `json:"created_at"`
 	Updated_at     time.Time
 }
 
@@ -44,8 +44,8 @@ type MonthReport struct {
 }
 
 type DailyReport struct {
-	Day     time.Time `json:"day"`
-	Minutes int       `json:"minutes"`
+	Day     time.Time `json:"date"`
+	Minutes int       `json:"count"`
 }
 
 var (
@@ -162,7 +162,7 @@ func (m UserModel) GetByEmail(email string) (*User, error) {
 }
 
 func (m UserModel) Get(id string) (*User, error) {
-	query := `SELECT id, username, password, configs FROM users WHERE id = $1`
+	query := `SELECT id, username, password, configs, created_at FROM users WHERE id = $1`
 	tx, err := m.DB.Begin(context.Background())
 	if err != nil {
 		return nil, err
@@ -172,7 +172,7 @@ func (m UserModel) Get(id string) (*User, error) {
 
 	var user User
 
-	err = tx.QueryRow(context.Background(), query, args...).Scan(&user.Id, &user.Username, &user.Password, &user.Configs)
+	err = tx.QueryRow(context.Background(), query, args...).Scan(&user.Id, &user.Username, &user.Password, &user.Configs, &user.Created_at)
 	if err != nil {
 		return nil, ErrUserNotFound
 	}
@@ -185,13 +185,13 @@ func (m UserModel) Get(id string) (*User, error) {
 func (m UserModel) Report(user *User) (*[]MonthReport, *[]DailyReport, error) {
 	query := `SELECT
 	    DATE_TRUNC('month', created_at) AS month,
-	    SUM(time) AS total_time
+	    SUM(time::interval) AS total_time
 	FROM (
-	    SELECT id_user, time, created_at FROM anki
+	SELECT id_user, time::interval, created_at FROM anki
 	    UNION ALL
-	    SELECT id_user, time, created_at FROM medias
+	SELECT id_user, time::interval, created_at FROM medias
 	    UNION ALL
-	    SELECT id_user, time, created_at FROM output
+	SELECT id_user, time::interval, created_at FROM output
 	) AS combined
 	WHERE id_user = $1
 	GROUP BY month
@@ -200,13 +200,13 @@ func (m UserModel) Report(user *User) (*[]MonthReport, *[]DailyReport, error) {
 	queryDaily := `
 	SELECT 
 	DATE_TRUNC('day', created_at) AS day,
-	SUM(EXTRACT(EPOCH FROM time) / 60)::integer AS total_minutes
+	SUM(EXTRACT(EPOCH FROM time::interval) / 60)::integer AS total_minutes
 	FROM (
-		SELECT id_user, time, created_at FROM anki
+	SELECT id_user, time::interval, created_at FROM anki
 		UNION ALL
-		SELECT id_user, time, created_at FROM medias
+	SELECT id_user, time::interval, created_at FROM medias
 		UNION ALL
-		SELECT id_user, time, created_at FROM output
+	SELECT id_user, time::interval, created_at FROM output
 	) as combined
 	WHERE id_user = $1
 	GROUP BY day
@@ -234,10 +234,8 @@ func (m UserModel) Report(user *User) (*[]MonthReport, *[]DailyReport, error) {
 		if err != nil {
 			return nil, nil, err
 		}
-		println("month and daily cached")
 		return &month, &daily, nil
 	}
-
 
 	tx, err := m.DB.Begin(ctx)
 	if err != nil {
