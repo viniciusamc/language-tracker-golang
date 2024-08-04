@@ -215,27 +215,27 @@ func (m UserModel) Report(user *User) (*[]MonthReport, *[]DailyReport, error) {
 
 	ctx := context.Background()
 
-	cacheDaily, err := m.RDB.Get(ctx, "daily:user:"+user.Id.String()).Result()
-	cacheMonth, err := m.RDB.Get(ctx, "month:user:"+user.Id.String()).Result()
-
-	if err != nil && err != redis.Nil {
-		return nil, nil, err
-	}
-
-	if err != redis.Nil {
-		var month []MonthReport
-		var daily []DailyReport
-		err := json.Unmarshal([]byte(cacheMonth), &month)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		err = json.Unmarshal([]byte(cacheDaily), &daily)
-		if err != nil {
-			return nil, nil, err
-		}
-		return &month, &daily, nil
-	}
+	// cacheDaily, err := m.RDB.Get(ctx, "daily:user:"+user.Id.String()).Result()
+	// cacheMonth, err := m.RDB.Get(ctx, "month:user:"+user.Id.String()).Result()
+	//
+	// if err != nil && err != redis.Nil {
+	// 	return nil, nil, err
+	// }
+	//
+	// if err != redis.Nil {
+	// 	var month []MonthReport
+	// 	var daily []DailyReport
+	// 	err := json.Unmarshal([]byte(cacheMonth), &month)
+	// 	if err != nil {
+	// 		return nil, nil, err
+	// 	}
+	//
+	// 	err = json.Unmarshal([]byte(cacheDaily), &daily)
+	// 	if err != nil {
+	// 		return nil, nil, err
+	// 	}
+	// 	return &month, &daily, nil
+	// }
 
 	tx, err := m.DB.Begin(ctx)
 	if err != nil {

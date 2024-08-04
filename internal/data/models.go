@@ -24,4 +24,3 @@ func NewModel(db *pgxpool.Pool, rdb *redis.Client) Models {
 		Book: BookModel{db, rdb},
 	}
 }
-

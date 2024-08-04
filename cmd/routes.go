@@ -57,6 +57,7 @@ func (app *application) routes() http.Handler {
 type SystemInfo struct {
 	Environment string    `json:"environment"`
 	Time        time.Time `json:"time"`
+	Database    any    `json:"database_health"`
 }
 
 func (app *application) healthCheck(w http.ResponseWriter, r *http.Request) {
