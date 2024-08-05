@@ -10,6 +10,7 @@ func (app *application) createBook(w http.ResponseWriter, r *http.Request) {
 	var input struct {
 		Title          string `json:"title"`
 		Pages          string `json:"pages"`
+		Time           int    `json:"time"`
 		TargetLanguage string `json:"target_language"`
 	}
 
@@ -21,7 +22,7 @@ func (app *application) createBook(w http.ResponseWriter, r *http.Request) {
 
 	user := app.contextGetUser(r)
 
-	err = app.models.Book.Insert(user, input.Title, input.Pages, input.TargetLanguage)
+	err = app.models.Book.Insert(user, input.Title, input.Pages, input.TargetLanguage, input.Time)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
@@ -53,6 +54,7 @@ func (app *application) updateBookProgress(w http.ResponseWriter, r *http.Reques
 	var input struct {
 		ReadPages      int    `json:"read_pages"`
 		ReadType       string `json:"read_type"`
+		Time           int    `json:"time"`
 		TargetLanguage string `json:"target_language"`
 	}
 
@@ -64,7 +66,7 @@ func (app *application) updateBookProgress(w http.ResponseWriter, r *http.Reques
 
 	user := app.contextGetUser(r)
 
-	err = app.models.Book.UpdateBook(user, idBook, input.ReadPages, input.ReadType)
+	err = app.models.Book.UpdateBook(user, idBook, input.ReadPages, input.ReadType, input.Time)
 	if err != nil {
 		switch {
 		case errors.Is(err, data.ErrPageNumberTooLow):

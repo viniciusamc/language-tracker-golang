@@ -127,7 +127,6 @@ func HandleTranscriptTask(ctx context.Context, t *asynq.Task, rdb *redis.Client,
 	transcript, err := youtubetranscript.GetTranscript(ctx, y.YoutubeUrl, opts...)
 
 	if err != nil && !strings.Contains(err.Error(), "no transcript found") {
-		fmt.Println(err.Error())
 		return err
 	}
 
@@ -152,12 +151,6 @@ func HandleTranscriptTask(ctx context.Context, t *asynq.Task, rdb *redis.Client,
 
 	separeted := strings.Split(transcript, " ")
 
-	err = rdb.Del(ctx, "medias:user:"+y.UserId).Err()
-	if err != nil {
-		log.Fatalf("error deleting cache %v", err)
-		return err
-	}
-
 	query := `UPDATE medias SET total_words = $1, title = $4, time = $5 WHERE id_user = $2 AND id = $3`
 	tx, err := pool.Begin(ctx)
 	if err != nil {
@@ -172,6 +165,12 @@ func HandleTranscriptTask(ctx context.Context, t *asynq.Task, rdb *redis.Client,
 	_, err = tx.Exec(ctx, query, args...)
 	if err != nil {
 		log.Fatalf("error exec database %v", err)
+		return err
+	}
+
+	err = rdb.Del(ctx, "medias:user:"+y.UserId).Err()
+	if err != nil {
+		log.Fatalf("error deleting cache %v", err)
 		return err
 	}
 

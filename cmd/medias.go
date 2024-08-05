@@ -76,3 +76,21 @@ func (app *application) getMedia(w http.ResponseWriter, r *http.Request){
 		return
 	}
 }
+
+func (app *application) deleteMedia(w http.ResponseWriter, r *http.Request) {
+	user := app.contextGetUser(r)
+	media := r.PathValue("id")
+
+	err := app.models.Medias.Delete(user, media)
+	if err != nil {
+		switch {
+		default:
+			app.serverErrorResponse(w, r, err)
+			return
+		}
+	}
+	err = app.render.JSON(w, 200, "Media deleted with success")
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+}

@@ -31,7 +31,7 @@ type Medias struct {
 }
 
 type Video struct {
-	ID             string         `json:"-"`
+	ID             string         `json:"id"`
 	IDUser         string         `json:"-"`
 	Title          string         `json:"title"`
 	VideoID        sql.NullString `json:"video_id"`
@@ -86,7 +86,7 @@ func (t MediasModel) Insert(userId string, url string, kind string, watchType st
 		return "", "", err
 	}
 
-	args := []any{userId, videoId, kind, watchType, targetLanguage, "Youtube", "00:00:00"}
+	args := []any{userId, videoId, kind, watchType, targetLanguage, "Processing Video Information – Please Wait", "00:00:00"}
 	var idMedia string
 
 	t.RDB.Del(ctx, `medias:user:`+userId)
@@ -107,7 +107,7 @@ func (t MediasModel) Insert(userId string, url string, kind string, watchType st
 func (t MediasModel) Get(userId string) (Medias, error) {
 	query := `
 		SELECT 
-			title, video_id, episode, type, watch_type, time, created_at, target_language, 
+			id, title, video_id, episode, type, watch_type, time::interval, created_at, target_language, 
 			SUM(time) OVER (PARTITION BY id_user) as total_time, 
 			SUM(total_words) OVER (PARTITION BY id_user) as sum_words,
 			total_words
@@ -143,7 +143,7 @@ func (t MediasModel) Get(userId string) (Medias, error) {
 	for rows.Next() {
 		var r Video
 		var t time.Duration
-		err := rows.Scan(&r.Title, &r.VideoID, &r.Episode, &r.Type, &r.WatchType, &t, &r.CreatedAt, &r.TargetLanguage, &totalDuration, &totalWords, &r.TotalWords)
+		err := rows.Scan(&r.ID, &r.Title, &r.VideoID, &r.Episode, &r.Type, &r.WatchType, &t, &r.CreatedAt, &r.TargetLanguage, &totalDuration, &totalWords, &r.TotalWords)
 		if err != nil {
 			return Medias{}, err
 		}
@@ -170,10 +170,35 @@ func (t MediasModel) Get(userId string) (Medias, error) {
 		return Medias{}, err
 	}
 
-	err = t.RDB.Set(ctx, "medias:user:"+userId, mediasByte, 24*time.Hour).Err()
+	err = t.RDB.Set(ctx, "medias:user:"+userId, mediasByte, 10*time.Minute).Err()
 	if err != nil {
 		return Medias{}, err
 	}
 
 	return medias, nil
+}
+
+func (t MediasModel) Delete(user *User, id string) error {
+	query := "DELETE FROM medias WHERE id_user = $1 AND id = $2"
+
+	tx, err := t.DB.Begin(context.Background())
+	if err != nil {
+		return nil
+	}
+
+	t.RDB.Del(context.Background(), "medias:user:"+user.Id.String())
+
+	args := []any{user.Id.String(), id}
+	_, err = tx.Exec(context.Background(), query, args...)
+
+	if err != nil {
+		return err
+	}
+
+	err = tx.Commit(context.Background())
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

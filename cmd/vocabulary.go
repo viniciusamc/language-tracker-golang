@@ -22,7 +22,7 @@ func (app *application) createVocabulary(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	app.render.JSON(w, 201, "ok")
+	app.render.JSON(w, 201, "Vocabulary created with success")
 }
 
 func (app *application) getVocabulary(w http.ResponseWriter, r *http.Request) {
@@ -35,6 +35,24 @@ func (app *application) getVocabulary(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err = app.render.JSON(w, 200, data)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+}
+
+func (app *application) deleteVocabulary(w http.ResponseWriter, r *http.Request) {
+	user := app.contextGetUser(r)
+	vocabulary := r.PathValue("id")
+
+	err := app.models.Vocabulary.Delete(user, vocabulary)
+	if err != nil {
+		switch {
+		default:
+			app.serverErrorResponse(w, r, err)
+			return
+		}
+	}
+	err = app.render.JSON(w, 200, "Vocabulary deleted with success")
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 	}

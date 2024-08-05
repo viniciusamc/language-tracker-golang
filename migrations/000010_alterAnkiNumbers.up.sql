@@ -14,18 +14,3 @@ ALTER TABLE anki DROP COLUMN added_cards;
 
 ALTER TABLE anki RENAME COLUMN added_int TO added_cards;
 
-ALTER TABLE anki ADD COLUMN new_time INTERVAL;
-
-UPDATE anki SET new_time = time::interval;
-
-ALTER TABLE anki DROP COLUMN time;
-
-ALTER TABLE anki RENAME COLUMN new_time TO time;
-
-ALTER TABLE books_history ADD column new_time INTERVAL;
-
-UPDATE books_history SET new_time = time::INTERVAL;
-
-ALTER TABLE books_history DROP COLUMN time;
-
-ALTER TABLE books_history RENAME COLUMN new_time TO time;

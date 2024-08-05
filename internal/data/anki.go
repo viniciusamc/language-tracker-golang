@@ -3,6 +3,7 @@ package data
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"time"
 
@@ -16,7 +17,7 @@ type AnkiModel struct {
 }
 
 type Anki struct {
-	ID             int64     `json:"-"`
+	ID             int64     `json:"id"`
 	IDUser         string    `json:"-"`
 	Reviewed       int       `json:"reviewed"`
 	AddedCards     int       `json:"added_cards"`
@@ -33,6 +34,10 @@ type AnkiData struct {
 	TotalReviewed      int64  `json:"totalReviewed"`
 	TotalTimeInSeconds string `json:"totalTimeInSeconds"`
 }
+
+var (
+	ErrAnkiNotFound = errors.New("Anki item not found: The requested Anki item could not be found in the database.")
+)
 
 func (t AnkiModel) Insert(user string, reviewed int, newCards int, interval int, targetLanguage string) error {
 	query := "INSERT INTO anki(id_user, reviewed, added_cards, time, target_language) VALUES($1,$2,$3,$4,$5)"
@@ -65,21 +70,21 @@ func (t AnkiModel) Insert(user string, reviewed int, newCards int, interval int,
 }
 
 func (t AnkiModel) GetByUser(user string) (*AnkiData, error) {
-	query := "SELECT time, target_language, created_at, SUM(reviewed::int) OVER (PARTITION BY reviewed::int) as totalReviewed, SUM(time::interval) OVER (PARTITION BY time) AS sum_time, SUM(added_cards::integer) OVER (PARTITION BY added_cards) as totalAdded FROM anki WHERE id_user = $1 ORDER BY created_at ASC"
+	query := "SELECT id, time::interval, target_language, created_at, SUM(reviewed::int) OVER (PARTITION BY reviewed::int) as totalReviewed, SUM(time::interval) OVER (PARTITION BY time) AS sum_time, SUM(added_cards::integer) OVER (PARTITION BY added_cards) as totalAdded FROM anki WHERE id_user = $1 ORDER BY created_at ASC"
 
-	// cache, err := t.RDB.Get(context.Background(), "anki:user:"+user).Result()
-	// if err != nil && err != redis.Nil {
-	// 	return nil, err
-	// }
-	//
-	// if err != redis.Nil {
-	// 	var data AnkiData
-	// 	err := json.Unmarshal([]byte(cache), &data)
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-	// 	return &data, nil
-	// }
+	cache, err := t.RDB.Get(context.Background(), "anki:user:"+user).Result()
+	if err != nil && err != redis.Nil {
+		return nil, err
+	}
+
+	if err != redis.Nil {
+		var data AnkiData
+		err := json.Unmarshal([]byte(cache), &data)
+		if err != nil {
+			return nil, err
+		}
+		return &data, nil
+	}
 
 	tx, err := t.DB.Begin(context.Background())
 	if err != nil {
@@ -101,7 +106,7 @@ func (t AnkiModel) GetByUser(user string) (*AnkiData, error) {
 	for rows.Next() {
 		var a Anki
 		var t time.Duration
-		err := rows.Scan(&t, &a.TargetLanguage, &a.CreatedAt, &a.Reviewed, &totalTime, &a.AddedCards)
+		err := rows.Scan(&a.ID, &t, &a.TargetLanguage, &a.CreatedAt, &a.Reviewed, &totalTime, &a.AddedCards)
 		if err != nil {
 			return nil, err
 		}
@@ -151,4 +156,29 @@ func (t AnkiModel) GetByUser(user string) (*AnkiData, error) {
 	}
 
 	return &data, nil
+}
+
+func (t AnkiModel) Delete(user *User, id string) error {
+	query := "DELETE FROM anki WHERE id_user = $1 AND id = $2"
+
+	tx, err := t.DB.Begin(context.Background())
+	if err != nil {
+		return nil
+	}
+
+	t.RDB.Del(context.Background(), "anki:user:"+user.Id.String())
+
+	args := []any{user.Id.String(), id}
+	_, err = tx.Exec(context.Background(), query, args...)
+
+	if err != nil {
+		return err
+	}
+
+	err = tx.Commit(context.Background())
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

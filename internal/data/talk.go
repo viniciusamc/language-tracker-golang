@@ -25,7 +25,7 @@ type DataOutput struct {
 }
 
 type Output struct {
-	ID             string    `json:"-"`
+	ID             string    `json:"id"`
 	IDUser         string    `json:"-"`
 	Kind           string    `json:"type"`
 	Time           string    `json:"time"`
@@ -93,7 +93,7 @@ func (t TalkModel) Insert(id string, kind string, minutes int16, targetLanguage 
 }
 
 func (t TalkModel) GetByUser(id string) (DataOutput, error) {
-	query := `SELECT type, time, target_language, created_at, AVG(time::interval) OVER (PARTITION BY time) as avg_time, SUM(time::interval) OVER (PARTITION BY time) AS sum_time FROM output WHERE id_user = $1 ORDER BY created_at ASC
+	query := `SELECT id, type, time::interval, target_language, created_at, AVG(time::interval) OVER (PARTITION BY time) as avg_time, SUM(time::interval) OVER (PARTITION BY time) AS sum_time FROM output WHERE id_user = $1 ORDER BY created_at ASC
 	`
 	// ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	// defer cancel()
@@ -130,11 +130,13 @@ func (t TalkModel) GetByUser(id string) (DataOutput, error) {
 	var avgTime, totalTime time.Duration
 	for rows.Next() {
 		var r Output
-		err := rows.Scan(&r.Kind, &r.Time, &r.TargetLanguage, &r.CreatedAt, &avgTime, &totalTime)
+		var t time.Duration
+		err := rows.Scan(&r.ID, &r.Kind, &t, &r.TargetLanguage, &r.CreatedAt, &avgTime, &totalTime)
 		if err != nil {
 			return DataOutput{}, err
 		}
 		r.Source = "Talk"
+		r.Time = ParseTime(t)
 		talk = append(talk, r)
 	}
 
@@ -190,4 +192,29 @@ func (t TalkModel) GetByUser(id string) (DataOutput, error) {
 	}
 
 	return output, nil
+}
+
+func (t TalkModel) Delete(user *User, id string) error {
+	query := "DELETE FROM output WHERE id_user = $1 AND id = $2"
+
+	tx, err := t.DB.Begin(context.Background())
+	if err != nil {
+		return nil
+	}
+
+	t.RDB.Del(context.Background(), "talk:user:"+user.Id.String())
+
+	args := []any{user.Id.String(), id}
+	_, err = tx.Exec(context.Background(), query, args...)
+
+	if err != nil {
+		return err
+	}
+
+	err = tx.Commit(context.Background())
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

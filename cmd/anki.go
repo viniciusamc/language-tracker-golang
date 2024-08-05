@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/go-playground/validator/v10"
@@ -9,24 +8,20 @@ import (
 
 func (app *application) createAnki(w http.ResponseWriter, r *http.Request) {
 	var input struct {
-		Reviewed       int  `json:"reviewed" validate:"required"`
-		NewCards       int  `json:"newCards" validate:"required"`
-		Time           int  `json:"time" validate:"required"`
+		Reviewed       int    `json:"reviewed" validate:"required"`
+		NewCards       int    `json:"newCards" validate:"required"`
+		Time           int    `json:"time" validate:"required"`
 		TargetLanguage string `json:"target_language" validate:"required"`
 	}
 
-
 	err := app.readJSON(w, r, &input)
 	if err != nil {
-		fmt.Println(err.Error())
 		app.badRequestResponse(w, r, err)
 		return
 	}
-	fmt.Println(input.TargetLanguage)
 	v := validator.New()
 	err = v.Struct(input)
 	if err != nil {
-		fmt.Println(err.Error())
 		app.badRequestResponse(w, r, err)
 		return
 	}
@@ -56,6 +51,24 @@ func (app *application) getAnki(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err = app.render.JSON(w, 200, data)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+}
+
+func (app *application) deleteAnki(w http.ResponseWriter, r *http.Request) {
+	user := app.contextGetUser(r)
+	idAnki := r.PathValue("id")
+
+	err := app.models.Anki.Delete(user, idAnki)
+	if err != nil {
+		switch {
+		default:
+			app.serverErrorResponse(w, r, err)
+			return
+		}
+	}
+	err = app.render.JSON(w, 200, "Anki Deleted With success")
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 	}

@@ -58,7 +58,7 @@ type BooksHistory struct {
 	Kind       string        `json:"source"`
 }
 
-func (b BookModel) Insert(user *User, title string, pages string, targetLanguage string) error {
+func (b BookModel) Insert(user *User, title string, pages string, targetLanguage string, minutesReading int) error {
 	query := "INSERT INTO books(id_user, title, target_language) VALUES($1, $2, $3) RETURNING id"
 
 	ctx := context.Background()
@@ -79,9 +79,9 @@ func (b BookModel) Insert(user *User, title string, pages string, targetLanguage
 	query = "INSERT INTO books_history(id_user, id_book, actual_page, total_pages, read_type, total_words, time) VALUES($1, $2, $3, $4, $5, $6, $7)"
 
 	totalWords := user.Configs.ReadWordsPerMinute * user.Configs.AverageWordsPerPage
-	totalTime := totalWords / user.Configs.ReadWordsPerMinute
+	totalTime := minutesReading
 
-	args = []any{user.Id.String(), idBook, 0, pages, "None", totalWords, ParseMinutes(totalTime)}
+	args = []any{user.Id.String(), idBook, 0, pages, "None", totalWords, ParseMinutes(int32(totalTime))}
 
 	_, err = tx.Exec(ctx, query, args...)
 	if err != nil {
@@ -169,8 +169,9 @@ func (b BookModel) GetByUser(user *User) (*DataBooks, error) {
 	}
 
 	for _, a := range lastHistoryMap {
+		t, _ := ParseDuration(a.Time)
 		data.BooksLastHistory = append(data.BooksLastHistory, a)
-		data.DurationBooks += a.RawTime.Abs()
+		data.DurationBooks += t.Abs()
 		data.TotalBooksWords += a.TotalWords
 		data.TotalBooksPages += a.ActualPage
 	}
@@ -207,9 +208,9 @@ func (b BookModel) GetByUser(user *User) (*DataBooks, error) {
 	return &data, nil
 }
 
-func (b BookModel) UpdateBook(user *User, idBook string, readPages int, readType string) error {
+func (b BookModel) UpdateBook(user *User, idBook string, readPages int, readType string, minutesReading int) error {
 	query := "INSERT INTO books_history(id_user, id_book, actual_page, read_type, total_words, time_diff, time, total_pages) VALUES($1, $2, $3, $4, $5, $6, $7, $8)"
-	queryHistory := "SELECT actual_page, total_pages, time::interval FROM books_history WHERE id_user = $1 AND id_book = $2 ORDER BY created_at LIMIT 1"
+	queryHistory := "SELECT actual_page, total_pages, time::interval FROM books_history WHERE id_user = $1 AND id_book = $2 ORDER BY created_at DESC LIMIT 1"
 
 	ctx := context.Background()
 
@@ -235,12 +236,12 @@ func (b BookModel) UpdateBook(user *User, idBook string, readPages int, readType
 	}
 
 	totalWords := user.Configs.AverageWordsPerPage * int32(readPages)
-	totalTime := totalWords / user.Configs.ReadWordsPerMinute
+	timeBookInMinutes := timeBook.Minutes()
+	totalTime := minutesReading + int(timeBookInMinutes)
 
-	diffWords := user.Configs.AverageWordsPerPage * (int32(readPages) - int32(actualPage))
-	timeDiff := diffWords / user.Configs.ReadWordsPerMinute
+	timeDiff := minutesReading
 
-	args = []any{user.Id.String(), idBook, readPages, readType, totalWords, ParseMinutes(timeDiff), ParseMinutes(totalTime), totalPages}
+	args = []any{user.Id.String(), idBook, readPages, readType, totalWords, ParseMinutes(int32(timeDiff)), ParseMinutes(int32(totalTime)), totalPages}
 
 	_, err = tx.Exec(ctx, query, args...)
 	if err != nil {

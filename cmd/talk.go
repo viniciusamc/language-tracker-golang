@@ -33,7 +33,6 @@ func (app *application) createTalk(w http.ResponseWriter, r *http.Request) {
 
 	user := app.contextGetUser(r)
 
-
 	err = app.models.Talks.Insert(user.Id.String(), input.Type, int16(input.Time), user.Configs.TargetLanguage)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
@@ -60,5 +59,23 @@ func (app *application) getTalk(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
+	}
+}
+
+func (app *application) deleteTalk(w http.ResponseWriter, r *http.Request) {
+	user := app.contextGetUser(r)
+	talk := r.PathValue("id")
+
+	err := app.models.Talks.Delete(user, talk)
+	if err != nil {
+		switch {
+		default:
+			app.serverErrorResponse(w, r, err)
+			return
+		}
+	}
+	err = app.render.JSON(w, 200, "Talk deleted with success")
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
 	}
 }

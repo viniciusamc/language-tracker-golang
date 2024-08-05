@@ -20,7 +20,7 @@ type DataVocabulary struct {
 }
 
 type Vocabulary struct {
-	ID                  string    `json:"-"`
+	ID                  string    `json:"id"`
 	Vocabulary          int       `json:"vocabulary"`
 	DifferenceLastMonth int64     `json:"difference_last_month"`
 	URL                 *string   `json:"url"`
@@ -62,7 +62,7 @@ func (v VocabularyModel) Insert(user string, vocabulary int32, targetLanguage st
 }
 
 func (v VocabularyModel) GetByUser(user string) (*DataVocabulary, error) {
-	query := "SELECT vocabulary, diff_last, target_language, created_at, AVG(diff_last) OVER (PARTITION BY diff_last) FROM vocabulary WHERE id_user = $1"
+	query := "SELECT id, vocabulary, diff_last, target_language, created_at, AVG(diff_last) OVER (PARTITION BY diff_last) FROM vocabulary WHERE id_user = $1"
 
 	ctx := context.Background()
 
@@ -94,7 +94,7 @@ func (v VocabularyModel) GetByUser(user string) (*DataVocabulary, error) {
 	var vocabulary []Vocabulary
 	for rows.Next() {
 		var v Vocabulary
-		err := rows.Scan(&v.Vocabulary, &v.DifferenceLastMonth, &v.TargetLanguage, &v.Date, &DataVocabulary.Average)
+		err := rows.Scan(&v.ID, &v.Vocabulary, &v.DifferenceLastMonth, &v.TargetLanguage, &v.Date, &DataVocabulary.Average)
 		if err != nil {
 			return nil, err
 		}
@@ -124,4 +124,29 @@ func (v VocabularyModel) GetByUser(user string) (*DataVocabulary, error) {
 	}
 
 	return &DataVocabulary, nil
+}
+
+func (v VocabularyModel) Delete(user *User, id string) error {
+	query := "DELETE FROM vocabulary WHERE id_user = $1 AND id = $2"
+
+	tx, err := v.DB.Begin(context.Background())
+	if err != nil {
+		return nil
+	}
+
+	v.RDB.Del(context.Background(), "vocabulary:user:"+user.Id.String())
+
+	args := []any{user.Id.String(), id}
+	_, err = tx.Exec(context.Background(), query, args...)
+
+	if err != nil {
+		return err
+	}
+
+	err = tx.Commit(context.Background())
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
