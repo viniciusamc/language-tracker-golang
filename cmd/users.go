@@ -30,8 +30,7 @@ func (app *application) createUser(w http.ResponseWriter, r *http.Request) {
 
 	err := app.readJSON(w, r, &input)
 	if err != nil {
-		app.log.Err(err)
-		http.Error(w, "Invalid Json", http.StatusBadRequest)
+		app.badRequestResponse(w, r, err)
 		return
 	}
 
@@ -63,11 +62,11 @@ func (app *application) createUser(w http.ResponseWriter, r *http.Request) {
 
 	task, err := tasks.NewMailDeliveryTask(userId, "some:template:id")
 	if err != nil {
-		app.log.Error().Err(err).Msg("TASK NEW MAIL")
+		app.log.PrintError(err, nil)
 	}
 	_, err = app.queue.Enqueue(task)
 	if err != nil {
-		app.log.Error().Err(err).Msg("TASK QUEUE MAIL")
+		app.log.PrintError(err, nil)
 	}
 
 	w.Header().Add("TOKEN", token)

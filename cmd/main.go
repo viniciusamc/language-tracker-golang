@@ -3,10 +3,12 @@ package main
 import (
 	"context"
 	"language-tracker/internal/data"
+	"language-tracker/internal/jsonlog"
 	"language-tracker/internal/tasks"
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -31,7 +33,7 @@ type config struct {
 
 type application struct {
 	render *render.Render
-	log    *zerolog.Logger
+	log    *jsonlog.Logger
 	models data.Models
 	queue  *asynq.Client
 	config *config
@@ -53,12 +55,11 @@ func main() {
 	configLoaded.env.Environment = os.Getenv("ENVIRONMENT")
 
 	render := render.New()
-	logger := zerolog.New(os.Stdout).With().Timestamp().Stack().Logger()
-	
+	logger := jsonlog.NewLogger(os.Stdout, jsonlog.LevelInfo)
 
 	pool, err := pgxpool.New(context.Background(), os.Getenv("DATABASE_URL"))
 	if err != nil {
-		log.Panic("DATABASE URL MISSING")
+		logger.PrintFatal(err, nil)
 	}
 	client := asynq.NewClient(asynq.RedisClientOpt{
 		Addr:     os.Getenv("REDIS_HOST") + ":" + os.Getenv("REDIS_PORT"),
@@ -105,18 +106,22 @@ func main() {
 
 	app := &application{
 		render: render,
-		log:    &logger,
+		log:    logger,
 		models: data.NewModel(pool, rdb),
 		queue:  client,
 		config: &configLoaded,
 	}
 
-	server := http.Server{
-		Addr:    ":" + os.Getenv("PORT"),
-		Handler: app.routes(),
-	}
+	logger.PrintInfo("running on :" + os.Getenv("PORT"), nil)
 
-	println("running on :" + os.Getenv("PORT"))
+	server := http.Server{
+		Addr:         ":" + os.Getenv("PORT"),
+		ErrorLog:     log.New(logger, "", 0),
+		IdleTimeout:  time.Minute,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 30 * time.Second,
+		Handler:      app.routes(),
+	}
 
 	err = server.ListenAndServe()
 	if err != nil {

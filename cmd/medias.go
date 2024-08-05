@@ -46,11 +46,11 @@ func (app *application) createMedia(w http.ResponseWriter, r *http.Request) {
 
 	task, err := tasks.NewTranscriptTask(user.Id.String(), idMedia, videoId, input.TargetLanguage)
 	if err != nil {
-		app.log.Error().Err(err).Msg("TASK NEW MAIL")
+		app.log.PrintError(err, nil)
 	}
 	_, err = app.queue.Enqueue(task)
 	if err != nil {
-		app.log.Error().Err(err).Msg("TASK QUEUE MAIL")
+		app.log.PrintError(err, nil)
 	}
 
 	err = app.render.JSON(w, 201, "Ok")
@@ -71,7 +71,6 @@ func (app *application) getMedia(w http.ResponseWriter, r *http.Request){
 
 	err = app.render.JSON(w, 200, data)
 	if err != nil {
-		app.log.Debug().Stack()
 		app.serverErrorResponse(w, r, err)
 		return
 	}
