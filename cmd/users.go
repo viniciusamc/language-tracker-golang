@@ -60,7 +60,7 @@ func (app *application) createUser(w http.ResponseWriter, r *http.Request) {
 
 	}
 
-	task, err := tasks.NewMailDeliveryTask(userId, "some:template:id")
+	task, err := tasks.NewMailDeliveryTask(userId, "some:template:id", input.Email, token)
 	if err != nil {
 		app.log.PrintError(err, nil)
 	}
@@ -69,7 +69,6 @@ func (app *application) createUser(w http.ResponseWriter, r *http.Request) {
 		app.log.PrintError(err, nil)
 	}
 
-	w.Header().Add("TOKEN", token)
 	app.render.JSON(w, http.StatusOK, map[string]string{"message": "User created with success"})
 }
 

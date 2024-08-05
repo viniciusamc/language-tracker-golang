@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"language-tracker/internal/jsonlog"
 	"log"
 	"net/smtp"
 	"os"
@@ -16,6 +17,7 @@ import (
 	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
+	"github.com/resend/resend-go/v2"
 )
 
 const (
@@ -26,6 +28,8 @@ const (
 type EmailDeliveryPayload struct {
 	UserID     string
 	TemplateID string
+	UserEmail  string
+	Token      string
 }
 
 type TranscriptPayload struct {
@@ -72,8 +76,8 @@ func parseISO8601Duration(iso8601 string) (string, error) {
 	return fmt.Sprintf("%02d:%02d:%02d", formattedHours, formattedMinutes, seconds), nil
 }
 
-func NewMailDeliveryTask(userId string, tmplID string) (*asynq.Task, error) {
-	payload, err := json.Marshal(EmailDeliveryPayload{UserID: userId, TemplateID: tmplID})
+func NewMailDeliveryTask(userId string, tmplID string, userEmail string, token string) (*asynq.Task, error) {
+	payload, err := json.Marshal(EmailDeliveryPayload{UserID: userId, TemplateID: tmplID, UserEmail: userEmail, Token: token})
 	if err != nil {
 		return nil, err
 	}
@@ -96,24 +100,51 @@ func HandleMailTask(ctx context.Context, t *asynq.Task) error {
 		return fmt.Errorf("json.Unmarshal failed: %v: %w", err, asynq.SkipRetry)
 	}
 
-	// auth := smtp.PlainAuth("", os.Getenv("EMAIL_USER"), os.Getenv("EMAIL_API_KEY"), os.Getenv("EMAIL_HOST"))
+	env := os.Getenv("ENVIRONMENT")
 
-	if os.Getenv("ENVIRONMENT") != "production" {
+	if env == "production" {
+		apiKey := os.Getenv("EMAIL_API_KEY")
+
+		client := resend.NewClient(apiKey)
+
+		params := &resend.SendEmailRequest{
+			From:    "Language Tracker <languagetracker@languagetracker.shop>",
+			To:      []string{p.UserEmail},
+			Html:    "Welcome to Language Tracker, <a href=https://llt-web.vercel.app/token/\"" + p.Token + "\">click here to verify your account.</a>",
+			Subject: "Verify Your Language Tracker account",
+		}
+
+		_, err := client.Emails.Send(params)
+		if err != nil {
+			return err
+		}
+
+		return nil
+
+	} else {
+		from := "languagetracker@languagetracker.com"
+		to := []string{p.UserEmail}
+
+		smtpHost := "127.0.0.1"
+		smtpPort := "1025"
+		auth := smtp.PlainAuth("", from, "", smtpHost)
+
+		subject := "Subject: Verify Your Language Tracker account\n"
+		body := "Welcome to Language Tracker, <a href=http://localhost:5173/token/\"" + p.Token + "\">click here to verify your account.</a>"
+		msg := []byte(subject + "\n" + body)
+
+		err := smtp.SendMail(smtpHost+":"+smtpPort, auth, from, to, msg)
+		if err != nil {
+			return fmt.Errorf("failed to send email: %w", err)
+		}
+
+		log.Println("Email sent to", p.UserEmail)
+		log := jsonlog.NewLogger(os.Stdout, jsonlog.LevelInfo)
+
+		log.PrintInfo("email sent to "+ p.UserEmail , nil)
+
 		return nil
 	}
-
-	to := []string{"vinicius@example.com"}
-
-	msg := []byte("To: kate.doe@example.com\r\n" +
-		"Subject: Why aren’t you using Mailtrap yet?\r\n" +
-		"\r\n" +
-		"Here’s the space for our great sales pitch\r\n")
-
-	err := smtp.SendMail(os.Getenv("EMAIL_HOST")+":"+os.Getenv("EMAIL_PORT"), nil, "john.doe@gmail.com", to, msg)
-	if err != nil {
-		log.Default().Print(err)
-	}
-	return nil
 }
 
 func HandleTranscriptTask(ctx context.Context, t *asynq.Task, rdb *redis.Client, pool *pgxpool.Pool) error {

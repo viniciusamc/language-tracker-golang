@@ -274,6 +274,18 @@ func (m UserModel) Report(user *User) (*[]MonthReport, *[]DailyReport, error) {
 		dailyReport = append(dailyReport, d)
 	}
 
+	if len(dailyReport) == 0 {
+		var d DailyReport
+		var m MonthReport
+		d.Day = time.Now()
+		d.Minutes = 0
+		m.Month = time.Now()
+		hours, _ := time.ParseDuration("0s")
+		m.Hours = ParseTime(hours)
+		dailyReport = append(dailyReport, d)
+		report = append(report, m)
+	}
+
 	dailyBytes, err := json.Marshal(dailyReport)
 	if err != nil {
 		return nil, nil, err
