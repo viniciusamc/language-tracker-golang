@@ -5,7 +5,7 @@ services:
     image: postgres:latest
     environment:
         - POSTGRES_PASSWORD=123
-        - POSTGRES_DB=yaml
+        - POSTGRES_DB=llt-go
     ports:
       - "5434:5434"
     command: ["postgres", "-c", "port=5434"]
