@@ -21,8 +21,9 @@ import (
 )
 
 const (
-	TypeEmailDelivery = "email:deliver"
-	TypeTranscript    = "media:transcript"
+	TypeEmailDelivery            = "email:deliver"
+	TypeTranscript               = "media:transcript"
+	TypeRecoveryPasswordDelivery = "emailPassword:deliver"
 )
 
 type EmailDeliveryPayload struct {
@@ -92,6 +93,24 @@ func NewTranscriptTask(userId string, media string, youtubeUrl string, targetLan
 	}
 
 	return asynq.NewTask(TypeTranscript, payload), nil
+}
+
+func NewRecoveryPasswordTask(userId string, tmplID string, userEmail string, token string) (*asynq.Task, error) {
+	payload, err := json.Marshal(EmailDeliveryPayload{UserID: userId, TemplateID: tmplID, UserEmail: userEmail, Token: token})
+	if err != nil {
+		return nil, err
+	}
+
+	return asynq.NewTask(TypeRecoveryPasswordDelivery, payload), nil
+}
+
+func handleRecoveryPasswordTask(ctx context.Context, t *asynq.Task) error {
+	var p EmailDeliveryPayload
+	if err := json.Unmarshal(t.Payload(), &p); err != nil {
+		return fmt.Errorf("json.Unmarshal failed: %v: %w", err, asynq.SkipRetry)
+	}
+
+	return nil
 }
 
 func HandleMailTask(ctx context.Context, t *asynq.Task) error {

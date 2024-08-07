@@ -96,6 +96,41 @@ func (app *application) showUserSettings(w http.ResponseWriter, r *http.Request)
 	app.render.JSON(w, 200, user)
 }
 
+func (app *application) userRecoveryPassword(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		Email string `json:"email" validate:"required,email"`
+	}
+
+	err := app.readJSON(w, r, &input)
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	validate := validator.New()
+	err = validate.Struct(input)
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	user, err := app.models.Users.GetByEmail(input.Email)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrEmailNotFound):
+			app.notFoundResponseSpecified(w, r, err)
+			return
+
+		default:
+			app.serverErrorResponse(w, r, err)
+			return
+		}
+	}
+
+	app.render.JSON(w, 200, user)
+
+}
+
 func (app *application) showUser(w http.ResponseWriter, r *http.Request) {
 	user := app.contextGetUser(r)
 

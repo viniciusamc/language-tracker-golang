@@ -51,6 +51,7 @@ var (
 	ErrDuplicateEmail    = errors.New("an account with this email already exists")
 	ErrDuplicateUsername = errors.New("this username is already taken, please choose another")
 	ErrUserNotFound      = errors.New("the specified user could not be found")
+	ErrEmailNotFound     = errors.New("the email could not be found")
 )
 
 func (m UserModel) Insert(username string, email string, password string) (string, string, error) {
@@ -148,6 +149,10 @@ func (m UserModel) GetByEmail(email string) (*User, error) {
 
 	err = tx.QueryRow(ctx, query, args...).Scan(&user.Id, &user.Username, &user.Password, &user.Configs)
 	if err != nil {
+		switch {
+		case err.Error() == "no rows in result set":
+			return nil, ErrEmailNotFound
+		}
 		return nil, err
 	}
 

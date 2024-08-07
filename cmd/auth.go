@@ -25,8 +25,8 @@ func (app *application) createAuthenticationTokenHandler(w http.ResponseWriter, 
 	user, err := app.models.Users.GetByEmail(input.Email)
 	if err != nil {
 		switch {
-		case errors.Is(err, data.ErrUserNotFound):
-			app.errorResponse(w, r, 400, "Email doesn't exist")
+		case errors.Is(err, data.ErrEmailNotFound):
+			app.notFoundResponseSpecified(w, r, err)
 			return
 		default:
 			app.serverErrorResponse(w, r, err)
@@ -36,7 +36,7 @@ func (app *application) createAuthenticationTokenHandler(w http.ResponseWriter, 
 
 	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(input.Password))
 	if err != nil {
-		app.errorResponse(w, r, 400, "Wrong Password")
+		app.errorResponse(w, r, 400, "The password provided is wrong")
 		return
 	}
 
