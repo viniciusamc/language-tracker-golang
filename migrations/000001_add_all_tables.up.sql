@@ -57,8 +57,8 @@ CREATE TABLE public.users (
 CREATE TABLE public.anki (
 	id serial4 NOT NULL,
 	id_user uuid NOT NULL,
-	reviewed varchar NULL,
-	added_cards varchar NULL,
+	reviewed int NULL,
+	added_cards int NULL,
 	"time" time NULL,
 	target_language varchar(5) NOT NULL,
 	created_at timestamptz DEFAULT CURRENT_TIMESTAMP NULL,

@@ -141,7 +141,7 @@ func HandleMailTask(ctx context.Context, t *asynq.Task) error {
 		log.Println("Email sent to", p.UserEmail)
 		log := jsonlog.NewLogger(os.Stdout, jsonlog.LevelInfo)
 
-		log.PrintInfo("email sent to "+ p.UserEmail , nil)
+		log.PrintInfo("email sent to "+p.UserEmail, nil)
 
 		return nil
 	}
