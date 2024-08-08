@@ -146,15 +146,16 @@ func HandleMailTask(ctx context.Context, t *asynq.Task) error {
 
 		smtpHost := "127.0.0.1"
 		smtpPort := "1025"
-		auth := smtp.PlainAuth("", from, "", smtpHost)
 
 		subject := "Subject: Verify Your Language Tracker account\n"
 		body := "Welcome to Language Tracker, <a href=http://localhost:5173/token/\"" + p.Token + "\">click here to verify your account.</a>"
 		msg := []byte(subject + "\n" + body)
 
-		err := smtp.SendMail(smtpHost+":"+smtpPort, auth, from, to, msg)
+		err := smtp.SendMail(smtpHost+":"+smtpPort, nil, from, to, msg)
+
 		if err != nil {
-			return fmt.Errorf("failed to send email: %w", err)
+			fmt.Print(err.Error())
+			return err
 		}
 
 		log.Println("Email sent to", p.UserEmail)

@@ -60,7 +60,7 @@ func (app *application) createUser(w http.ResponseWriter, r *http.Request) {
 
 	}
 
-	task, err := tasks.NewMailDeliveryTask(userId, "some:template:id", input.Email, token)
+	task, err := tasks.NewMailDeliveryTask(userId, "email:template", input.Email, token)
 	if err != nil {
 		app.log.PrintError(err, nil)
 	}
@@ -223,4 +223,8 @@ func (app *application) showUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	app.render.JSON(w, 200, data)
+}
+
+func (app *application) userExportData(w http.ResponseWriter, r *http.Request) {
+
 }
