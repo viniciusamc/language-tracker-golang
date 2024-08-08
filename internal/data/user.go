@@ -185,6 +185,50 @@ func (m UserModel) Get(id string) (*User, error) {
 	return &user, nil
 }
 
+func (m UserModel) Edit(newConfig UserConfig, id string) error {
+	query := "SELECT username, configs FROM users WHERE id = $1"
+	tx, err := m.DB.Begin(context.Background())
+	if err != nil {
+		return err
+	}
+
+	var user User
+
+	err = tx.QueryRow(context.Background(), query, id).Scan(&user.Username, &user.Configs)
+	if err != nil {
+		return err
+	}
+
+	if newConfig.DailyGoal != 0 {
+		user.Configs.DailyGoal = newConfig.DailyGoal
+	}
+
+	if newConfig.AverageWordsPerPage != 0 {
+		user.Configs.AverageWordsPerPage = newConfig.AverageWordsPerPage
+	}
+
+	if newConfig.TargetLanguage != "" {
+		user.Configs.TargetLanguage = newConfig.TargetLanguage
+	}
+
+	if newConfig.ReadWordsPerMinute != 0 {
+		user.Configs.ReadWordsPerMinute = newConfig.ReadWordsPerMinute
+	}
+
+	query = "UPDATE users SET configs = $1 WHERE id = $2"
+
+	args := []any{user.Configs, id}
+
+	_, err = tx.Exec(context.Background(), query, args...)
+	if err != nil {
+		return err
+	}
+
+	tx.Commit(context.Background())
+
+	return nil
+}
+
 func (m UserModel) Report(user *User) (*[]MonthReport, *[]DailyReport, error) {
 	query := `SELECT
 	    DATE_TRUNC('month', created_at) AS month,

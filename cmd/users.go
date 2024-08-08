@@ -127,8 +127,49 @@ func (app *application) userRecoveryPassword(w http.ResponseWriter, r *http.Requ
 		}
 	}
 
+	task, err := tasks.NewRecoveryPasswordTask(user.Id.String(), "some:template:id", input.Email, "asdas")
+	if err != nil {
+		app.log.PrintError(err, nil)
+	}
+	_, err = app.queue.Enqueue(task)
+	if err != nil {
+		app.log.PrintError(err, nil)
+	}
+
 	app.render.JSON(w, 200, user)
 
+}
+
+func (app *application) editUserSettings(w http.ResponseWriter, r *http.Request) {
+	user := app.contextGetUser(r)
+
+	var input struct {
+		ReadWordsPerMinute int    `json:"wpm"`
+		AverageWordsPage   int    `json:"awp"`
+		TargetLanguage     string `json:"TL"`
+		DailyGoal          int    `json:"dailyGoal"`
+	}
+
+	err := app.readJSON(w, r, &input)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	newConfig := data.UserConfig{
+		ReadWordsPerMinute:  int32(input.ReadWordsPerMinute),
+		AverageWordsPerPage: int32(input.AverageWordsPage),
+		TargetLanguage:      input.TargetLanguage,
+		DailyGoal:           int32(input.DailyGoal),
+	}
+
+	err = app.models.Users.Edit(newConfig, user.Id.String())
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	app.render.JSON(w, 200, "User Config changed with success")
 }
 
 func (app *application) showUser(w http.ResponseWriter, r *http.Request) {

@@ -26,6 +26,7 @@ func (app *application) routes() http.Handler {
 	router.HandleFunc("POST /v1/users", app.createUser)
 	router.HandleFunc("GET /v1/user", app.authenticate(app.showUser))
 	router.HandleFunc("GET /v1/user/settings", app.authenticate(app.showUserSettings))
+	router.HandleFunc("PATCH /v1/user/settings", app.authenticate(app.editUserSettings))
 	router.HandleFunc("GET /v1/user/password", app.userRecoveryPassword)
 	router.HandleFunc("GET /v1/users/token/{token}", app.activateAccount)
 
