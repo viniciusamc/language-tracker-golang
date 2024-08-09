@@ -2,11 +2,13 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"language-tracker/internal/data"
 	"language-tracker/internal/tasks"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
@@ -94,10 +96,42 @@ func (app *application) activateAccount(w http.ResponseWriter, r *http.Request) 
 
 func (app *application) showUserSettings(w http.ResponseWriter, r *http.Request) {
 	user := app.contextGetUser(r)
+	medias, err := app.models.Medias.Get(user.Id.String())
 
-	app.render.JSON(w, 200, user)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	languages := []map[string]string{}
+	languageSet := make(map[string]bool)
+
+	for _, value := range medias.Videos {
+		if !languageSet[value.TargetLanguage] {
+			languageMap := map[string]string{
+				"language": value.TargetLanguage,
+			}
+			languages = append(languages, languageMap)
+			languageSet[value.TargetLanguage] = true
+		}
+	}
+
+	userWithLanguages := struct {
+		Username  string              `json:"Username"`
+		Configs   interface{}         `json:"configs"`
+		CreatedAt time.Time           `json:"created_at"`
+		UpdatedAt time.Time           `json:"Updated_at"`
+		Languages []map[string]string `json:"languages"`
+	}{
+		Username:  user.Username,
+		Configs:   user.Configs,
+		CreatedAt: user.Created_at,
+		UpdatedAt: user.Updated_at,
+		Languages: languages,
+	}
+
+	app.render.JSON(w, 200, userWithLanguages)
 }
-
 func (app *application) userRecoveryPassword(w http.ResponseWriter, r *http.Request) {
 	var input struct {
 		Email string `json:"email" validate:"required,email"`
@@ -231,7 +265,6 @@ func (app *application) userExportData(w http.ResponseWriter, r *http.Request) {
 
 }
 
-
 func (app *application) userWordsKnow(w http.ResponseWriter, r *http.Request) {
 	user := app.contextGetUser(r)
 
@@ -278,4 +311,32 @@ func (app *application) userWordsKnow(w http.ResponseWriter, r *http.Request) {
 	}
 
 	app.render.JSON(w, 200, words)
+}
+
+func (app *application) updateAllVideos(w http.ResponseWriter, r *http.Request) {
+	user := app.contextGetUser(r)
+
+	videoList, err := app.models.Medias.UpdateAll(user)
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	for _, value := range videoList {
+		task, err := tasks.NewTranscriptTask(value.IdUser, value.IdMedia, value.VideoId, value.TargetLanguage)
+		if err != nil {
+			fmt.Println(err.Error())
+			app.serverErrorResponse(w, r, err)
+			return
+		}
+		_, err = app.queue.Enqueue(task)
+		if err != nil {
+			fmt.Println(err.Error())
+			app.serverErrorResponse(w, r, err)
+			return
+		}
+
+	}
+
+	app.render.JSON(w, 200, "Ok")
 }

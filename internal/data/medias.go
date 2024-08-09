@@ -45,6 +45,13 @@ type Video struct {
 	Kind           string         `json:"source"`
 }
 
+type UpdateV struct {
+	IdUser string
+	IdMedia string
+	VideoId string
+	TargetLanguage string
+}
+
 func ParseDuration(hms string) (time.Duration, error) {
 	parts := strings.Split(hms, ":")
 	if len(parts) != 3 {
@@ -178,27 +185,53 @@ func (t MediasModel) Get(userId string) (Medias, error) {
 	return medias, nil
 }
 
-func (t MediasModel) Delete(user *User, id string) error {
-	query := "DELETE FROM medias WHERE id_user = $1 AND id = $2"
+func (t MediasModel) Delete(user *User, id string) (string, string, error) {
+	query := "DELETE FROM medias WHERE id_user = $1 AND id = $2 RETURNING video_id, target_language"
 
 	tx, err := t.DB.Begin(context.Background())
 	if err != nil {
-		return nil
+		return "", "", err
 	}
 
 	t.RDB.Del(context.Background(), "medias:user:"+user.Id.String())
 
+	var videoId, targetLanguage string
+
 	args := []any{user.Id.String(), id}
-	_, err = tx.Exec(context.Background(), query, args...)
+	err = tx.QueryRow(context.Background(), query, args...).Scan(&videoId, &targetLanguage)
 
 	if err != nil {
-		return err
+		return "", "", err
 	}
 
 	err = tx.Commit(context.Background())
 	if err != nil {
-		return err
+		return "", "", err
 	}
 
-	return nil
+	return videoId, targetLanguage, nil
+}
+
+func (t MediasModel) UpdateAll(user *User) ([]UpdateV, error) {
+	query := "SELECT id, id_user, video_id, target_language from medias WHERE video_id IS NOT NULL"
+
+	rows, err := t.DB.Query(context.Background(), query)
+	if err != nil {
+		return nil, err
+	}
+
+	var list []UpdateV
+
+	for rows.Next() {
+		var v UpdateV
+		err := rows.Scan(&v.IdMedia, &v.IdUser, &v.VideoId, &v.TargetLanguage)
+		if err != nil {
+			fmt.Println(err.Error())
+			return nil, err
+		}
+
+		list = append(list, v)
+	}
+
+	return list, nil
 }

@@ -60,7 +60,7 @@ func (app *application) createMedia(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (app *application) getMedia(w http.ResponseWriter, r *http.Request){
+func (app *application) getMedia(w http.ResponseWriter, r *http.Request) {
 	user := app.contextGetUser(r)
 
 	data, err := app.models.Medias.Get(user.Id.String())
@@ -80,7 +80,7 @@ func (app *application) deleteMedia(w http.ResponseWriter, r *http.Request) {
 	user := app.contextGetUser(r)
 	media := r.PathValue("id")
 
-	err := app.models.Medias.Delete(user, media)
+	videoId, targetLanguage, err := app.models.Medias.Delete(user, media)
 	if err != nil {
 		switch {
 		default:
@@ -88,6 +88,18 @@ func (app *application) deleteMedia(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+
+	task, err := tasks.NewDeleteWordsTask(user.Id.String(), videoId, targetLanguage)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+	_, err = app.queue.Enqueue(task)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
 	err = app.render.JSON(w, 200, "Media deleted with success")
 	if err != nil {
 		app.serverErrorResponse(w, r, err)

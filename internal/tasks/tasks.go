@@ -24,6 +24,7 @@ const (
 	TypeEmailDelivery            = "email:deliver"
 	TypeTranscript               = "media:transcript"
 	TypeRecoveryPasswordDelivery = "emailPassword:deliver"
+	TypeDeleteWords              = "media:delete"
 )
 
 type EmailDeliveryPayload struct {
@@ -38,6 +39,12 @@ type TranscriptPayload struct {
 	MediaId        string
 	TargetLanguage string
 	YoutubeUrl     string
+}
+
+type DeleteWordsPayload struct {
+	UserId         string
+	TargetLanguage string
+	YoutubeId      string
 }
 
 func parseISO8601Duration(iso8601 string) (string, error) {
@@ -92,7 +99,16 @@ func NewTranscriptTask(userId string, media string, youtubeUrl string, targetLan
 		return nil, err
 	}
 
-	return asynq.NewTask(TypeTranscript, payload), nil
+	return asynq.NewTask(TypeTranscript, payload, asynq.MaxRetry(2)), nil
+}
+
+func NewDeleteWordsTask(userId string, youtubeId string, targetLanguage string) (*asynq.Task, error) {
+	payload, err := json.Marshal(DeleteWordsPayload{UserId: userId, YoutubeId: youtubeId, TargetLanguage: targetLanguage})
+	if err != nil {
+		return nil, err
+	}
+
+	return asynq.NewTask(TypeDeleteWords, payload), nil
 }
 
 func NewRecoveryPasswordTask(userId string, tmplID string, userEmail string, token string) (*asynq.Task, error) {
@@ -167,74 +183,6 @@ func HandleMailTask(ctx context.Context, t *asynq.Task) error {
 	}
 }
 
-// func HandleTranscriptTask(ctx context.Context, t *asynq.Task, rdb *redis.Client, pool *pgxpool.Pool) error {
-// 	var y TranscriptPayload
-// 	if err := json.Unmarshal(t.Payload(), &y); err != nil {
-// 		return fmt.Errorf("json.Unmarshal failed: %v: %w", err, asynq.SkipRetry)
-// 	}
-// 	opts := []youtubetranscript.Option{
-// 		youtubetranscript.WithLang(y.TargetLanguage),
-// 	}
-// 	transcript, err := youtubetranscript.GetTranscript(ctx, y.YoutubeUrl, opts...)
-//
-// 	if err != nil && !strings.Contains(err.Error(), "no transcript found") {
-// 		return err
-// 	}
-//
-// 	var title, duration string
-//
-// 	c := colly.NewCollector()
-//
-// 	c.OnHTML("title", func(e *colly.HTMLElement) {
-// 		title = e.Text
-// 	})
-//
-// 	c.OnHTML("meta[itemprop=duration]", func(e *colly.HTMLElement) {
-// 		durationContent := e.Attr("content")
-// 		duration, _ = parseISO8601Duration(durationContent)
-// 	})
-// 	err = c.Visit("https://www.youtube.com/watch?v=" + y.YoutubeUrl)
-// 	if err != nil {
-// 		log.Fatalf("Failed to visit page: %v", err)
-// 	}
-//
-// 	c.Wait()
-//
-// 	separeted := strings.Split(transcript, " ")
-//
-// 	query := `UPDATE medias SET total_words = $1, title = $4, time = $5 WHERE id_user = $2 AND id = $3`
-// 	tx, err := pool.Begin(ctx)
-// 	if err != nil {
-// 		log.Fatalf("error begin pool %v", err)
-// 		return err
-// 	}
-//
-// 	defer tx.Rollback(ctx)
-//
-// 	args := []any{len(separeted) - 1, y.UserId, y.MediaId, title, duration}
-//
-// 	_, err = tx.Exec(ctx, query, args...)
-// 	if err != nil {
-// 		log.Fatalf("error exec database %v", err)
-// 		return err
-// 	}
-//
-// 	err = rdb.Del(ctx, "medias:user:"+y.UserId).Err()
-// 	if err != nil {
-// 		log.Fatalf("error deleting cache %v", err)
-// 		return err
-// 	}
-//
-// 	tx.Commit(ctx)
-//
-// 	return nil
-//
-// }
-
-func HandleDeleteTranscriptTask(ctx context.Context, t *asynq.Task, rdb *redis.Client, pool *pgxpool.Pool) error {
-	return nil
-}
-
 func HandleTranscriptTask(ctx context.Context, t *asynq.Task, rdb *redis.Client, pool *pgxpool.Pool) error {
 	var y TranscriptPayload
 	if err := json.Unmarshal(t.Payload(), &y); err != nil {
@@ -243,6 +191,7 @@ func HandleTranscriptTask(ctx context.Context, t *asynq.Task, rdb *redis.Client,
 	opts := []youtubetranscript.Option{
 		youtubetranscript.WithLang(y.TargetLanguage),
 	}
+	fmt.Println(y.YoutubeUrl)
 	transcript, err := youtubetranscript.GetTranscript(ctx, y.YoutubeUrl, opts...)
 
 	if err != nil && !strings.Contains(err.Error(), "no transcript found") {
@@ -357,4 +306,63 @@ func HandleTranscriptTask(ctx context.Context, t *asynq.Task, rdb *redis.Client,
 
 	return nil
 
+}
+
+func HandleDeleteTranscriptTask(ctx context.Context, t *asynq.Task, rdb *redis.Client, pool *pgxpool.Pool) error {
+	var y DeleteWordsPayload
+	if err := json.Unmarshal(t.Payload(), &y); err != nil {
+		return fmt.Errorf("json.Unmarshal failed: %v: %w", err, asynq.SkipRetry)
+	}
+	opts := []youtubetranscript.Option{
+		youtubetranscript.WithLang(y.TargetLanguage),
+	}
+
+	transcript, err := youtubetranscript.GetTranscript(ctx, y.YoutubeId, opts...)
+
+	if err != nil && !strings.Contains(err.Error(), "no transcript found") {
+		return err
+	}
+
+	separeted := strings.Split(transcript, " ")
+
+	deleteWords := "UPDATE SET amount = aux_words.amount - $1 FROM aux_words_amount"
+
+	txWords, err := pool.Begin(ctx)
+	if err != nil {
+		fmt.Print(err.Error())
+		return err
+	}
+
+	wordWithoutDuplicates := make(map[string]int)
+
+	totalWords := 0
+	re := regexp.MustCompile(`[\P{L}]+`) // removing digits, whitespaces, symbols and punctuations
+	for _, rawWord := range separeted {
+		word := re.ReplaceAllString(rawWord, "")
+
+		if len(word) <= 2 {
+			continue
+		}
+
+		wordWithoutDuplicates[strings.ToLower(word)] += 1
+		totalWords++
+	}
+
+	for word := range wordWithoutDuplicates {
+		_, err := txWords.Exec(context.Background(), deleteWords, word)
+
+		if err != nil {
+			fmt.Println(err.Error())
+			return err
+		}
+
+	}
+
+	err = txWords.Commit(context.Background())
+	if err != nil {
+		fmt.Println(err.Error())
+		return err
+	}
+
+	return nil
 }

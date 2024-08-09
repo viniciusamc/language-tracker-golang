@@ -30,6 +30,7 @@ func (app *application) routes() http.Handler {
 	router.HandleFunc("GET /v1/user/password", app.userRecoveryPassword)
 	router.HandleFunc("GET /v1/users/token/{token}", app.activateAccount)
 	router.HandleFunc("GET /v1/user/words", app.authenticate(app.userWordsKnow))
+	router.HandleFunc("GET /v1/user/update/words", app.authenticate(app.updateAllVideos))
 
 	router.HandleFunc("POST /v1/sessions", app.createAuthenticationTokenHandler)
 
