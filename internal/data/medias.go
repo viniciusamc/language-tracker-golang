@@ -211,27 +211,3 @@ func (t MediasModel) Delete(user *User, id string) (string, string, error) {
 
 	return videoId, targetLanguage, nil
 }
-
-func (t MediasModel) UpdateAll(user *User) ([]UpdateV, error) {
-	query := "SELECT id, id_user, video_id, target_language from medias WHERE video_id IS NOT NULL AND total_words > 0"
-
-	rows, err := t.DB.Query(context.Background(), query)
-	if err != nil {
-		return nil, err
-	}
-
-	var list []UpdateV
-
-	for rows.Next() {
-		var v UpdateV
-		err := rows.Scan(&v.IdMedia, &v.IdUser, &v.VideoId, &v.TargetLanguage)
-		if err != nil {
-			fmt.Println(err.Error())
-			return nil, err
-		}
-
-		list = append(list, v)
-	}
-
-	return list, nil
-}

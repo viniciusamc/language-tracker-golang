@@ -312,31 +312,3 @@ func (app *application) userWordsKnow(w http.ResponseWriter, r *http.Request) {
 
 	app.render.JSON(w, 200, words)
 }
-
-func (app *application) updateAllVideos(w http.ResponseWriter, r *http.Request) {
-	user := app.contextGetUser(r)
-
-	videoList, err := app.models.Medias.UpdateAll(user)
-	if err != nil {
-		app.badRequestResponse(w, r, err)
-		return
-	}
-
-	for _, value := range videoList {
-		task, err := tasks.NewTranscriptTask(value.IdUser, value.IdMedia, value.VideoId, value.TargetLanguage)
-		if err != nil {
-			fmt.Println(err.Error())
-			app.serverErrorResponse(w, r, err)
-			return
-		}
-		_, err = app.queue.Enqueue(task)
-		if err != nil {
-			fmt.Println(err.Error())
-			app.serverErrorResponse(w, r, err)
-			return
-		}
-
-	}
-
-	app.render.JSON(w, 200, "Ok")
-}
