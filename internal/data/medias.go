@@ -213,7 +213,7 @@ func (t MediasModel) Delete(user *User, id string) (string, string, error) {
 }
 
 func (t MediasModel) UpdateAll(user *User) ([]UpdateV, error) {
-	query := "SELECT id, id_user, video_id, target_language from medias WHERE video_id IS NOT NULL"
+	query := "SELECT id, id_user, video_id, target_language from medias WHERE video_id IS NOT NULL AND total_words > 0"
 
 	rows, err := t.DB.Query(context.Background(), query)
 	if err != nil {
