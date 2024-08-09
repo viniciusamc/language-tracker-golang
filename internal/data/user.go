@@ -2,8 +2,10 @@ package data
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -47,11 +49,18 @@ type DailyReport struct {
 	Minutes int       `json:"count"`
 }
 
+type WordsKnow struct {
+	Word     string `json:"word"`
+	Amount   string `json:"amount"`
+	Language string `json:"language"`
+}
+
 var (
 	ErrDuplicateEmail    = errors.New("an account with this email already exists")
 	ErrDuplicateUsername = errors.New("this username is already taken, please choose another")
 	ErrUserNotFound      = errors.New("the specified user could not be found")
 	ErrEmailNotFound     = errors.New("the email could not be found")
+	WordsNotFound        = errors.New("words not found")
 )
 
 func (m UserModel) Insert(username string, email string, password string) (string, string, error) {
@@ -354,4 +363,62 @@ func (m UserModel) Report(user *User) (*[]MonthReport, *[]DailyReport, error) {
 	}
 
 	return &report, &dailyReport, nil
+}
+
+func (m UserModel) GetWords(user *User, language, order string, limit, page, min, max int) (*[]WordsKnow, error) {
+	query := fmt.Sprintf(`
+	    SELECT w.word,
+		   awa.amount,
+		   awa.language
+	    FROM aux_words_amount awa
+	    INNER JOIN words w ON awa.word = w.id
+	    WHERE awa.id_user = $1
+	      AND awa.language = $2
+		AND awa.amount > $5 
+		AND awa.amount < $6
+	    ORDER BY awa.amount %s
+	    LIMIT $3
+	    OFFSET $4;
+	    `, order)
+
+	offset := (page - 1) * limit
+
+	if offset < 0 {
+		offset = 1
+	}
+
+	args := []any{user.Id.String(), language, limit, offset, min, max}
+
+	tx, err := m.DB.Begin(context.Background())
+	if err != nil {
+		return nil, err
+	}
+
+	defer tx.Rollback(context.Background())
+
+	rows, err := tx.Query(context.Background(), query, args...)
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, WordsNotFound
+		}
+	}
+
+	var wordsKnow []WordsKnow
+	for rows.Next() {
+		var w WordsKnow
+		err := rows.Scan(&w.Word, &w.Amount, &w.Language)
+		if err != nil {
+			return nil, err
+		}
+
+		wordsKnow = append(wordsKnow, w)
+	}
+
+	err = tx.Commit(context.Background())
+	if err != nil {
+		return nil, err
+	}
+
+	return &wordsKnow, nil
 }

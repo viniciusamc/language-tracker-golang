@@ -7,9 +7,17 @@ services:
         - POSTGRES_PASSWORD=123
         - POSTGRES_DB=llt-go
     ports:
-      - "5434:5434"
-    command: ["postgres", "-c", "port=5434"]
+      - "5434:5432"
 
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=admin@example.com
+      - PGADMIN_DEFAULT_PASSWORD=admin
+    ports:
+      - "8080:80"
+    depends_on:
+      - db
 
   redis:
     image: redis

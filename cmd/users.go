@@ -5,6 +5,8 @@ import (
 	"language-tracker/internal/data"
 	"language-tracker/internal/tasks"
 	"net/http"
+	"strconv"
+	"strings"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
@@ -227,4 +229,53 @@ func (app *application) showUser(w http.ResponseWriter, r *http.Request) {
 
 func (app *application) userExportData(w http.ResponseWriter, r *http.Request) {
 
+}
+
+
+func (app *application) userWordsKnow(w http.ResponseWriter, r *http.Request) {
+	user := app.contextGetUser(r)
+
+	language := r.URL.Query().Get("language")
+	order := strings.ToUpper(r.URL.Query().Get("order"))
+	limitQuery := r.URL.Query().Get("limit")
+	pageQuery := r.URL.Query().Get("page")
+	minQuery := r.URL.Query().Get("min")
+	maxQuery := r.URL.Query().Get("max")
+
+	limit, err := strconv.Atoi(limitQuery)
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	page, err := strconv.Atoi(pageQuery)
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	min, err := strconv.Atoi(minQuery)
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	max, err := strconv.Atoi(maxQuery)
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	if order != "ASC" && order != "DESC" {
+		app.errorResponse(w, r, 400, "Only ASC and DESC are allowed")
+		return
+	}
+
+	words, err := app.models.Users.GetWords(user, language, order, limit, page, min, max)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	app.render.JSON(w, 200, words)
 }

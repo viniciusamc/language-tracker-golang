@@ -1,0 +1,7 @@
+DROP TABLE IF EXISTS aux_words_amount;
+
+DROP TABLE IF EXISTS video_words;
+
+DROP INDEX IF EXISTS idx_word;
+
+DROP TABLE IF EXISTS words;
