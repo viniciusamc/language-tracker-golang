@@ -2,6 +2,7 @@ package data
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"time"
@@ -52,7 +53,7 @@ type BooksHistory struct {
 	ReadType   string        `json:"read_type"`
 	TotalWords int64         `json:"total_words"`
 	Time       string        `json:"time"`
-	TimeDiff   *string       `json:"time_diff"`
+	TimeDiff   string        `json:"time_diff"`
 	CreatedAt  time.Time     `json:"created_at"`
 	RawTime    time.Duration `json:"-"`
 	Kind       string        `json:"source"`
@@ -100,7 +101,7 @@ func (b BookModel) Insert(user *User, title string, pages string, targetLanguage
 
 func (b BookModel) GetByUser(user *User) (*DataBooks, error) {
 	query := "SELECT id, title, description, target_language, created_at FROM books WHERE id_user = $1"
-	queryHistory := "SELECT id,id_book,actual_page, total_pages, read_type, total_words, created_at, time::interval FROM books_history WHERE id_user = $1"
+	queryHistory := "SELECT id,id_book,actual_page, total_pages, read_type, total_words, created_at, time::interval, time_diff::interval FROM books_history WHERE id_user = $1"
 
 	ctx := context.Background()
 
@@ -151,12 +152,18 @@ func (b BookModel) GetByUser(user *User) (*DataBooks, error) {
 	for rows.Next() {
 		b := BooksHistory{}
 		var rawTimeString time.Duration
-		err := rows.Scan(&b.ID, &b.IDBook, &b.ActualPage, &b.TotalPages, &b.ReadType, &b.TotalWords, &b.CreatedAt, &rawTimeString)
+		var rawTimeDiff sql.NullString
+		err := rows.Scan(&b.ID, &b.IDBook, &b.ActualPage, &b.TotalPages, &b.ReadType, &b.TotalWords, &b.CreatedAt, &rawTimeString, &rawTimeDiff)
 		if err != nil {
 			return nil, err
 		}
 
 		b.Time = ParseTime(rawTimeString)
+		if rawTimeDiff.Valid {
+			b.TimeDiff = rawTimeDiff.String
+		} else {
+			b.TimeDiff = "00:00:00"
+		}
 		b.Kind = "BooksHistory"
 
 		booksHistory = append(booksHistory, b)
