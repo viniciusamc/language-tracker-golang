@@ -45,7 +45,7 @@ type Book struct {
 }
 
 type BooksHistory struct {
-	ID         int64         `json:"-"`
+	ID         int64         `json:"id"`
 	IDUser     string        `json:"-"`
 	IDBook     string        `json:"id_book"`
 	ActualPage int64         `json:"actual_page"`
@@ -267,6 +267,33 @@ func (b BookModel) UpdateBook(user *User, idBook string, readPages int, readType
 
 func (b BookModel) Delete(user *User, idBook string) error {
 	query := "DELETE FROM books WHERE id_user = $1 AND id = $2"
+
+	ctx := context.Background()
+
+	tx, err := b.DB.Begin(ctx)
+	if err != nil {
+		return err
+	}
+
+	args := []any{user.Id.String(), idBook}
+
+	_, err = tx.Exec(ctx, query, args...)
+	if err != nil {
+		return err
+	}
+
+	b.RDB.Del(ctx, "books:user:"+user.Id.String())
+
+	err = tx.Commit(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (b BookModel) DeleteHistory(user *User, idBook string) error {
+	query := "DELETE FROM books_history WHERE id_user = $1 AND id = $2"
 
 	ctx := context.Background()
 

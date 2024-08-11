@@ -53,6 +53,7 @@ func (app *application) routes() http.Handler {
 	router.HandleFunc("GET /v1/books", app.authenticate(app.getBook))
 	router.HandleFunc("PATCH /v1/books/{idBook}", app.authenticate(app.updateBookProgress))
 	router.HandleFunc("DELETE /v1/books/{idBook}", app.authenticate(app.deleteBook))
+	router.HandleFunc("DELETE /v1/books/history/{idBook}", app.authenticate(app.deleteHistoryBook))
 	return router
 }
 

@@ -103,3 +103,20 @@ func (app *application) deleteBook(w http.ResponseWriter, r *http.Request) {
 		app.serverErrorResponse(w, r, err)
 	}
 }
+
+func (app *application) deleteHistoryBook(w http.ResponseWriter, r *http.Request) {
+	bookHistory := r.PathValue("idBook")
+
+	user := app.contextGetUser(r)
+
+	err := app.models.Book.DeleteHistory(user, bookHistory)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	err = app.render.JSON(w, 200, "ok")
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+}
