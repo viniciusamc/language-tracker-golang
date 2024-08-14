@@ -239,31 +239,36 @@ func (m UserModel) Edit(newConfig UserConfig, id string) error {
 }
 
 func (m UserModel) Report(user *User) (*[]MonthReport, *[]DailyReport, error) {
-	query := `SELECT
+	query := `
+	SELECT
 	    DATE_TRUNC('month', created_at) AS month,
 	    SUM(time::interval) AS total_time
 	FROM (
-	SELECT id_user, time::interval, created_at FROM anki
+	    SELECT id_user, time::interval, created_at FROM anki
 	    UNION ALL
-	SELECT id_user, time::interval, created_at FROM medias
+	    SELECT id_user, time::interval, created_at FROM medias
 	    UNION ALL
-	SELECT id_user, time::interval, created_at FROM output
+	    SELECT id_user, time::interval, created_at FROM output
+	    UNION ALL
+	    SELECT id_user, COALESCE(time_diff, '0:00:00'::time)::interval AS time, created_at FROM books_history
 	) AS combined
 	WHERE id_user = $1
 	GROUP BY month
-	ORDER BY month;`
-
+	ORDER BY month;
+	`
 	queryDaily := `
 	SELECT 
-	DATE_TRUNC('day', created_at) AS day,
-	SUM(EXTRACT(EPOCH FROM time::interval) / 60)::integer AS total_minutes
+	    DATE_TRUNC('day', created_at) AS day,
+	    SUM(EXTRACT(EPOCH FROM time::interval) / 60)::integer AS total_minutes
 	FROM (
-	SELECT id_user, time::interval, created_at FROM anki
-		UNION ALL
-	SELECT id_user, time::interval, created_at FROM medias
-		UNION ALL
-	SELECT id_user, time::interval, created_at FROM output
-	) as combined
+	    SELECT id_user, time::interval, created_at FROM anki
+	    UNION ALL
+	    SELECT id_user, time::interval, created_at FROM medias
+	    UNION ALL
+	    SELECT id_user, time::interval, created_at FROM output
+	    UNION ALL
+	    SELECT id_user, COALESCE(time_diff, '0:00:00'::time)::interval AS time, created_at FROM books_history
+	) AS combined
 	WHERE id_user = $1
 	GROUP BY day
 	ORDER BY day;
